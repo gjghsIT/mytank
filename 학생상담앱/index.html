@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>학생 상담 기록</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="header-icon" aria-hidden="true">🎙️</div>
+        <div>
+          <h1>학생 상담 기록</h1>
+          <p class="subtitle">고등학교 교사용 음성 상담 도우미</p>
+        </div>
+      </header>
+
+      <section class="card student-section">
+        <label for="studentName">학생 이름</label>
+        <input
+          id="studentName"
+          type="text"
+          placeholder="예: 김민수"
+          maxlength="20"
+          autocomplete="off"
+        />
+      </section>
+
+      <section class="card control-section">
+        <div class="status-bar" id="statusBar">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">상담 대기 중</span>
+          <span class="timer" id="timer">00:00</span>
+        </div>
+
+        <div class="button-group">
+          <button id="startBtn" class="btn btn-start">상담 시작</button>
+          <button id="stopBtn" class="btn btn-stop" disabled>상담 종료</button>
+        </div>
+
+        <p class="hint">
+          Chrome 또는 Edge 브라우저에서 마이크 권한을 허용해 주세요.
+          상담 종료 시 음성 파일이 자동으로 저장됩니다.
+        </p>
+      </section>
+
+      <section class="card result-section hidden" id="resultSection">
+        <h2>저장된 음성</h2>
+        <div class="audio-box">
+          <audio id="audioPlayback" controls></audio>
+          <a id="downloadLink" class="download-link" download>음성 파일 다시 받기</a>
+        </div>
+      </section>
+
+      <section class="card summary-section hidden" id="summarySection">
+        <h2>주요 상담 내용 요약</h2>
+        <p id="summaryText" class="summary-text"></p>
+      </section>
+
+      <section class="card examples-section hidden" id="examplesSection">
+        <h2>다음 상담 예시 발문</h2>
+        <p class="examples-desc">이번 상담 내용을 바탕으로 이어갈 수 있는 질문·격려 문장입니다.</p>
+        <ul id="examplesList" class="examples-list"></ul>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
