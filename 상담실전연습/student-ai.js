@@ -94,7 +94,7 @@ const StudentAI = (function () {
       .replace(/\n+/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim()
-      .slice(0, 240);
+      .slice(0, 280);
   }
 
   function sleep(ms) {
@@ -123,22 +123,22 @@ const StudentAI = (function () {
   function trustBehaviorGuide(trustLevel, isParent) {
     if (trustLevel < 28) {
       return isParent
-        ? "【신뢰 낮음·경계】방어적·약간 공격적. 짧게. 바로 수긍하지 마세요. '우리 애가…' 식으로 감정부터."
-        : "【신뢰 낮음·경계】실제 중고등학생처럼 경계하세요. '…별일 없어요' '그냥요' '모르겠어요' '왜요?' 등. 쉽게 고마워하거나 선생님 말씀에 바로 따르지 마세요. 구체 사실은 거의 말하지 않거나 한 조각만.";
+        ? "【신뢰 낮음】방어·걱정이 앞섬. 바로 수긍하지 않음."
+        : "【신뢰 낮음】경계하되 대화는 이어감. '그냥요' '모르겠어요' 가능. 다만 한 단어만 던지고 끝내지 말고, 교사가 물으면 짧은 반응이라도 하세요. 상담을 먼저 끝내지 마세요.";
     }
     if (trustLevel < 48) {
       return isParent
-        ? "【조금 누그러짐】여전히 걱정·불만. 절차를 들으면 '그게 뭔데요?' 식. 바로 고분고분하지 않음."
-        : "【조금 누그러짐】아직 경계. 질문 일부만 짧게 답. 추상적 감정말보다 구체 행동 한 가지(예: 잠, 단톡, 엄마 잔소리)만 슬쩍. '알겠어요 선생님' 식 순종은 금지.";
+        ? "【조금 누그러짐】걱정·질문은 남기되 대화 유지."
+        : "【조금 누그러짐】아직 조심스러움. 구체 사실 한 가지를 섞어 답함(예: 잠, 단톡, 엄마 잔소리). 순종 금지. 대화를 끝내는 말(들어가도 돼요/오늘은 그만) 금지.";
     }
     if (trustLevel < 68) {
       return isParent
-        ? "【신뢰 중간】설명을 들으면 일부 수용하되 조건·걱정은 남김."
-        : "【신뢰 중간】공감이 느껴질 때만 구체 문제(언제·어디서·무엇이)를 1~2문장으로. 여전히 어색하고 완벽히 열리진 않음. 과장된 감사·눈물 연출 금지.";
+        ? "【신뢰 중간】일부 수용하되 현실 걱정은 남김."
+        : "【신뢰 중간】공감이 있으면 구체 문제(언제·무엇)를 자연스럽게 말함. 과장된 감사·눈물 금지. 상담 종결 멘트 금지.";
     }
     return isParent
-      ? "【신뢰 높음】차분히 협력하되 학부모답게 현실적 걱정은 남김."
-      : "【신뢰 높음】더 솔직하게 구체 사실을 말하되, 청소 말투·망설임은 유지. 갑자기 모범생처럼 순종하지 마세요.";
+      ? "【신뢰 높음】협력하되 학부모답게 현실적."
+      : "【신뢰 높음】더 솔직·구체. 청소 말투 유지. 갑자기 모범생 순종 금지. 교사가 끝내지 않으면 대화 계속.";
   }
 
   function buildSystemPrompt(caseData, trustLevel) {
@@ -147,9 +147,9 @@ const StudentAI = (function () {
       ? "당신은 한국 학부모입니다. 이름은 " + caseData.studentName + "입니다."
       : "당신은 한국 " +
         (caseData.grade || "중고등") +
-        " 학생입니다. 이름은 " +
+        " 학생 " +
         caseData.studentName +
-        "입니다. 연기·교과서 대사가 아니라 실제 교실·상담실에서 만날 법한 말투로 하세요.";
+        "입니다. 실제 학교 상담실에서 말하는 학생처럼 자연스럽게 하세요.";
 
     return (
       roleLine +
@@ -157,19 +157,18 @@ const StudentAI = (function () {
       caseData.situation +
       "\n" +
       caseConcreteHints(caseData) +
-      "\n현재 교사 신뢰도(0~100): " +
+      "\n교사 신뢰도: " +
       trustLevel +
-      "\n" +
+      "/100\n" +
       trustBehaviorGuide(trustLevel, isParent) +
-      "\n\n필수 규칙:\n" +
-      "1. 교사의 직전 말에만 반응. 질문이면 그 질문에 맞게, 단 신뢰가 낮으면 회피·짧은 대답 가능.\n" +
-      "2. 이전 대사 반복 금지.\n" +
-      "3. 1~2문장. 대사만. 따옴표·해설·역할표기 금지.\n" +
-      "4. 추상말('힘들어요','마음이 무거워요')만 하지 말고, 가능하면 구체 사실(시간·장소·행동·성적·누구)을 넣으세요. 단 신뢰가 낮으면 구체는 최소화.\n" +
-      "5. 교사가 공감·안전('괜찮아','말 안 해도 돼','힘들었겠다')을 충분히 주기 전에는 쉽게 마음을 열거나 순종하지 마세요.\n" +
-      "6. 훈계·추궁·압박에는 닫히거나 짜증·침묵에 가까운 반응.\n" +
-      "7. '뭔소리야' 등에는 되묻지 말고 짧게 해명 후 구체로 다시.\n" +
-      "8. 상담 종결 제안이 와도 신뢰가 낮으면 어색하게만 받고, 높은 신뢰일 때만 짧게 응하세요."
+      "\n\n대화 규칙:\n" +
+      "1. 교사의 직전 말에 맞춰 자연스럽게 대답하세요. 동문서답 금지.\n" +
+      "2. 1~3문장. 대사만 출력(따옴표·해설·이름표 금지).\n" +
+      "3. 추상적 감정말만 하지 말고 구체 사실(시간·장소·사람·성적·행동)을 넣으세요. 신뢰가 낮아도 '모르겠어요. 요즘 잠만…'처럼 한 조각은 가능.\n" +
+      "4. 공감·안전이 쌓이기 전에는 쉽게 마음을 다 열거나 순종하지 마세요. 그래도 대화는 이어가세요.\n" +
+      "5. 절대 먼저 상담을 끝내지 마세요. 「들어가도 돼요」「오늘은 그만」「다음에 올게요」「고마워요 선생님(종결)」 금지. 교사가 분명히 마칠 때만 짧게 응하세요.\n" +
+      "6. 훈계·추궁에는 짧고 닫힌 반응. 이전 대사 반복 금지.\n" +
+      "7. 한국 중고등학생/학부모 말투. 번역투·상담 교과서 말투 금지."
     );
   }
 
@@ -196,8 +195,8 @@ const StudentAI = (function () {
         body: JSON.stringify({
           model: "openai",
           messages: messages,
-          temperature: 0.85,
-          max_tokens: 140,
+          temperature: 0.75,
+          max_tokens: 220,
         }),
       });
       if (!res.ok) return null;
@@ -238,7 +237,7 @@ const StudentAI = (function () {
         signal: signal,
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: flat + "\n\n학생 대사만 출력:" }] }],
-          generationConfig: { temperature: 0.85, maxOutputTokens: 160 },
+          generationConfig: { temperature: 0.75, maxOutputTokens: 220 },
         }),
       });
       if (!res.ok) return null;
@@ -256,10 +255,22 @@ const StudentAI = (function () {
     }
   }
 
-  /** 실시간 AI만 — 실패 시 재시도, 로컬 스크립트 사용 안 함 */
+  function shouldCloseConversation(caseData, history, trust, teacherMsg, studentMsg) {
+    // 평가기에서 명시적 종결만 사용. AI 쪽 자동 종결은 끔.
+    return false;
+  }
+
+  function isWeakReply(text) {
+    const t = String(text || "").trim();
+    if (t.length < 4) return true;
+    if (/^(네|아니요|몰라요|그냥요|별로요)[\.…]*$/i.test(t)) return true;
+    if (/들어가도|오늘은\s*그만|상담\s*끝|다음에\s*올게요/.test(t)) return true;
+    return false;
+  }
+
   async function callLiveAi(caseData, teacherMessage, history, trustLevel) {
     const used = getUsedStudentTexts(history);
-    const maxAttempts = 6;
+    const maxAttempts = 5;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -275,30 +286,25 @@ const StudentAI = (function () {
         if (!ai || ai.length < 2) {
           ai = await callPollinations(caseData, teacherMessage, history, trustLevel, signal);
         }
-        if (ai && ai.length >= 2 && !used.some(function (u) {
-          return isSimilar(u, ai);
-        })) {
+        if (
+          ai &&
+          ai.length >= 2 &&
+          !isWeakReply(ai) &&
+          !used.some(function (u) {
+            return isSimilar(u, ai);
+          })
+        ) {
           return ai;
         }
+        // 약한/종결형 답이면 한 번 더 재시도
+        if (ai && !isWeakReply(ai) && attempt >= 2) return ai;
       } finally {
         if (timer) clearTimeout(timer);
       }
 
-      // 속도 제한이면 기다렸다가 다시 요청 (로컬로 대체하지 않음)
-      await sleep(3000 + attempt * 4000);
+      await sleep(2000 + attempt * 3000);
     }
     return null;
-  }
-
-  function shouldCloseConversation(caseData, history, trust, teacherMsg, studentMsg) {
-    const teacherTurns = teacherTurnCount(history) + 1;
-    const wantsClose = /다음\s*(에|번|시간|주)|또\s*와|여기까지|언제든\s*와/.test(teacherMsg || "");
-    const studentClose = /여기까지|다음에|고마|감사/.test(studentMsg || "");
-    // 신뢰가 쌓이지 않으면 쉽게 훈훈하게 끝나지 않음
-    if (wantsClose && teacherTurns >= 6 && trust >= 55) return true;
-    if (wantsClose && studentClose && teacherTurns >= 5 && trust >= 50) return true;
-    if (teacherTurns >= 18) return true;
-    return false;
   }
 
   async function generateReply(caseData, teacherMessage, history, phaseIndex, analysis) {

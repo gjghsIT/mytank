@@ -126,7 +126,9 @@
     for (let i = history.length - 1; i >= 0; i--) {
       const turn = history[i];
       if (turn.role !== "teacher") continue;
-      if ((turn.score || 0) < 45) streak++;
+      // 점수 하향 조정 후에도 정상 멘트가 조기 종료되지 않도록
+      // 심각한 금기(매우 낮은 점수)만 연속 감지로 사용
+      if ((turn.score || 0) < 22) streak++;
       else break;
     }
     return streak;
@@ -173,7 +175,8 @@
     }
 
     const badStreak = countBadStreak(turnHistory);
-    if (badStreak >= 3) {
+    // 정말 심한 금기 멘트가 연속될 때만 학생이 대화를 끊음 (조기 종료 방지)
+    if (badStreak >= 4) {
       nextPhaseIndex = caseData.phases.findIndex(function (p) {
         return p.isClosure;
       });
@@ -193,8 +196,11 @@
       };
     }
 
+    // 현재 턴이 심한 금기면 닫히되, 상담 자체는 바로 끝내지 않음
+    const severeNow =
+      analysis.hasInsult || analysis.hasThreat || (analysis.hasVictimBlame && analysis.hasLecture);
+
     let message = "";
-    let localClose = false;
 
     if (typeof StudentAI === "undefined" || !StudentAI.generateReply) {
       throw new Error("StudentAI unavailable");
@@ -208,15 +214,26 @@
       analysis
     );
     message = reply.message;
-    localClose = !!reply.shouldClose;
 
-    const shouldClose = !!localClose;
+    // 교사가 분명히 상담을 마무리할 때만 종료 (「다음 시간」 제안은 종결이 아님)
+    const explicitEnd =
+      /오늘은\s*여기|여기까지\s*(하|할|하자|할게요)|상담\s*(끝|마치|종료)|들어가도\s*돼|다음에\s*또\s*와|또\s*와도\s*돼|언제든\s*찾아와|마무리\s*하/.test(
+        teacherMessage || ""
+      );
+    const shouldClose = explicitEnd && teacherTurns >= 5;
 
     if (shouldClose) {
       const closeIdx = caseData.phases.findIndex(function (p) {
         return p.isClosure;
       });
       if (closeIdx >= 0) nextPhaseIndex = closeIdx;
+    }
+
+    if (severeNow && !shouldClose) {
+      // 금기 멘트면 닫힌 반응으로 덮어쓰기 가능 — AI 답이 너무 순하면
+      if (!message || message.length < 4) {
+        message = "…말하기 싫어요.";
+      }
     }
 
     return {
