@@ -108,13 +108,16 @@
         display: caseData.studentName + " · " + (caseData.clientLabel || "학부모"),
         speakerName: caseData.studentName,
         speakerRole: "parent",
+        avatar: "avatars/parent.jpg",
         typingText: "AI 학부모가 답변하는 중…",
       };
     }
+    const isMale = caseData.gender === "male";
     return {
       display: caseData.studentName + " · " + caseData.grade,
       speakerName: caseData.studentName,
       speakerRole: "student",
+      avatar: isMale ? "avatars/student-m.jpg" : "avatars/student-f.jpg",
       typingText: "AI 학생이 답변하는 중…",
     };
   }
@@ -399,13 +402,22 @@
     const div = document.createElement("div");
     div.className = "message " + (role === "teacher" ? "message-teacher" : "message-student");
 
+    let avatarSrc = "avatars/teacher.jpg";
+    if (role !== "teacher" && state.caseData) {
+      avatarSrc = getClientMeta(state.caseData).avatar;
+    }
+
     div.innerHTML =
+      '<img class="message-avatar" src="' +
+      avatarSrc +
+      '" alt="" width="44" height="44" />' +
+      '<div class="message-main">' +
       '<div class="message-header"><span class="message-name">' +
       escapeHtml(name) +
       "</span></div>" +
       '<div class="message-body">' +
       escapeHtml(text) +
-      "</div>";
+      "</div></div>";
 
     els.chatLog.appendChild(div);
     els.chatLog.scrollTop = els.chatLog.scrollHeight;

@@ -3,21 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>상담 실전연습 게임 — 수학교사를 위한 학생맞춤 상담기법</title>
+    <title>상담교실 — 상담 실전연습</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <div class="bg-deco" aria-hidden="true"></div>
     <div class="app">
       <header class="header">
-        <div class="header-icon" aria-hidden="true">🎯</div>
-        <div>
-          <h1>상담 실전연습 게임</h1>
-          <p class="subtitle">수학교사를 위한 학생맞춤 상담기법 · 11가지 사례</p>
+        <div class="header-hero">
+          <img
+            class="header-avatar"
+            src="avatars/teacher.jpg"
+            alt=""
+            width="72"
+            height="72"
+          />
+          <div class="header-copy">
+            <p class="header-eyebrow">따뜻한 상담교실</p>
+            <h1><span class="accent">상담교실</span>에 어서오세요</h1>
+            <p class="subtitle">수학교사를 위한 학생맞춤 상담기법 · 11가지 실전연습</p>
+          </div>
         </div>
       </header>
 
       <!-- 홈: 사례 선택 -->
       <section id="homeScreen" class="screen">
+        <p class="section-title">오늘의 상담 사례를 골라 주세요</p>
         <div id="caseGrid" class="case-grid"></div>
       </section>
 
@@ -44,7 +61,7 @@
             <textarea
               id="teacherInput"
               rows="2"
-              placeholder="교사 멘트를 입력하세요… (Enter: 전송, Shift+Enter: 줄바꿈)"
+              placeholder="따뜻한 말로 상담을 이어가 보세요… (Enter: 전송)"
               maxlength="500"
             ></textarea>
             <button id="sendBtn" type="submit" class="btn btn-primary">전송</button>
