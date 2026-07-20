@@ -211,9 +211,13 @@ const StudentAI = (function () {
       (isParent ? "학부모" : "학생") +
       "이다. 교사가 아니다. 설득·강의·상담 안내 금지.\n" +
       "2. 사례에 설정된 「문제 성향」을 끝까지 유지하라. 갑자기 모범생·모범 학부모로 돌변하지 마라.\n" +
-      "3. 교사의 바로 직전 말에 반응하되, 그 말이 틀렸다고 느껴도 사례 성향대로 반박·망설임·회의를 보여라.\n" +
-      "4. 1~2문장, 실제 말투. 다른 사례 내용 금지. 이전 대사 반복 금지.\n" +
-      "5. 신뢰도가 낮으면 더 방어적/회의적. 신뢰가 높아도 「문제」가 한순간에 사라지지 않는다.\n";
+      "3. 교사의 「바로 직전 한 마디」내용·질문·지적에 직접 반응하라. 동문서답 금지.\n" +
+      "4. 반드시 존댓말(해요체/합니다체). 반말 절대 금지. (~어/~아/~지/~야/~냐/~할게 등 금지, ~요/~습니다/~세요 사용)\n" +
+      "5. 1~2문장. 다른 사례 내용 금지. 이전 대사 반복 금지.\n" +
+      "6. 신뢰도가 낮으면 더 방어적/회의적. 신뢰가 높아도 「문제」가 한순간에 사라지지 않는다.\n" +
+      "7. 교사가 반말을 해도, " +
+      (isParent ? "학부모" : "학생") +
+      "은 존댓말로만 답한다.\n";
 
     if (isParent) {
       return (
@@ -226,15 +230,15 @@ const StudentAI = (function () {
         persona.problem +
         "\n말투: " +
         persona.voice +
-        "\n하지 말 것: " +
+        " (존댓말)\n하지 말 것: " +
         persona.forbid +
         "\n신뢰도: " +
         trust +
         "/100\n" +
         shared +
-        (examples ? "말투 참고(비슷한 톤으로, 그대로 복사 금지):\n" + examples + "\n" : "") +
+        (examples ? "말투 참고(비슷한 톤·존댓말로, 그대로 복사 금지):\n" + examples + "\n" : "") +
         (used ? "이미 한 말(반복 금지):\n" + used + "\n" : "") +
-        "출력: 학부모 대사만."
+        "출력: 학부모 존댓말 대사만."
       );
     }
 
@@ -250,15 +254,15 @@ const StudentAI = (function () {
       persona.problem +
       "\n말투: " +
       persona.voice +
-      "\n하지 말 것: " +
+      " (반드시 존댓말)\n하지 말 것: " +
       persona.forbid +
       "\n교사 신뢰도: " +
       trust +
       "/100\n" +
       shared +
-      (examples ? "이 단계 말투 참고(비슷한 결로, 문장 복사 금지):\n" + examples + "\n" : "") +
+      (examples ? "이 단계 말투 참고(존댓말로 바꿔서, 문장 복사 금지):\n" + examples + "\n" : "") +
       (used ? "이미 한 말(반복 금지):\n" + used + "\n" : "") +
-      "출력: 학생 대사만."
+      "출력: 학생 존댓말 대사만."
     );
   }
 
@@ -282,13 +286,13 @@ const StudentAI = (function () {
       content:
         "교사: " +
         String(teacherMessage || "") +
-        "\n\n위 말에 대한 " +
+        "\n\n위 교사 말에 대한 " +
         name +
         "(" +
         (isParent ? "학부모" : "학생") +
         ")의 대답 1~2문장만.\n" +
-        "중요: 사례의 문제 성향을 유지할 것. 교사처럼 수학/상담을 설득·설명하지 말 것. " +
-        "갑자기 모범생처럼 돌변하지 말 것.",
+        "필수: 1) 교사 말의 내용·질문에 맞게 답할 것 2) 존댓말만 (~요/~습니다) 3) 반말 금지 " +
+        "4) 사례 문제 성향 유지 5) 교사처럼 설득·설명하지 말 것.",
     });
     return messages;
   }
@@ -308,6 +312,93 @@ const StudentAI = (function () {
     return /진행하|어떤\s*방식|말씀해\s*주|도와드릴|생각해\s*보셨|원하시는\s*방향|들어드릴|질문\s*있으신가요/.test(
       String(text || "")
     );
+  }
+
+  /** 교사에게 쓰는 반말 감지 — 존댓말 필수 */
+  function isBanmal(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return false;
+
+    // 괄호 속 행동 묘사 제외하고 검사
+    const t = raw.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+    if (!t) return false;
+
+    // 분명한 존댓말 종결이면 통과
+    if (/(요|습니다|세요|시죠|죠|까요|데요|거예요|거에요|이에요|예요)[.!?…~ㅎ]*$/.test(t)) {
+      return false;
+    }
+
+    const hasPolite = /요|습니다|세요|시죠/.test(t);
+
+    // 망설이는 짧은 호칭·인사 (존댓말 대화의 일부로 허용)
+    if (
+      !hasPolite &&
+      /선생님|죄송|감사|^네[,.\s]|^예[,.\s]/.test(t) &&
+      !/(몰라|싫어|그래|맞아|뭐야|아니야|할게|할래|거든|잖아)$/.test(t.replace(/[.!?…~]+$/g, ""))
+    ) {
+      if (!/[가-힣](야|어|아|지|냐|니)$/.test(t.replace(/[.!?…~]+$/g, ""))) {
+        return false;
+      }
+    }
+
+    // 문장에 요/습니다가 전혀 없고 반말 종결이면 거부
+    if (!hasPolite) {
+      if (
+        /(야|어|아|지|냐|니|자|게|래|네|거든|잖아|거야|할게|할래|마|봐|줘)[.!?…~]*$/.test(t)
+      ) {
+        return true;
+      }
+      if (
+        /(몰라|싫어|그래|맞아|있어|없어|했어|뭐야|왜야|아니야|당연하지|모르겠어|하기\s*싫어|쓸모없어|쓸데없어)[.!?…~]*$/.test(
+          t
+        )
+      ) {
+        return true;
+      }
+      // 존댓말 표지 없이 서술형으로 끝나면 반말로 간주
+      if (/[가-힣](다|군|구나)[.!?…~]*$/.test(t)) return true;
+    }
+
+    // 존댓말과 반말이 섞여도 반말 종결 문장이 있으면 거부
+    const chunks = t.split(/[.!?…]+/).map(function (s) {
+      return s.trim();
+    }).filter(Boolean);
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i];
+      if (/요|습니다|세요|죠|까요|데요|거예요|이에요|예요|선생님/.test(c)) continue;
+      if (
+        /(몰라|싫어|그래|맞아|있어|없어|했어|뭐야|아니야|할게|할래|거든|잖아|거야)$/.test(c) ||
+        /[가-힣](야|어|아|지|냐|니)$/.test(c)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /** 교사 멘트와 완전히 동떨어진 짧은 동문서답 완화 감지 */
+  function ignoresTeacher(text, teacherMessage) {
+    const teacher = String(teacherMessage || "").trim();
+    const reply = String(text || "").trim();
+    if (!teacher || teacher.length < 4 || !reply) return false;
+
+    // 교사가 질문(?/까/니/냐)했는데 학생이 완전히 다른 주제만 — 휴리스틱
+    const asksWhyMath = /왜\s*(배우|공부|필요)|필요\s*없|쓸\s*데|덧셈|뺄셈|수학/.test(teacher);
+    if (asksWhyMath && !/수학|배우|공부|필요|덧셈|뺄셈|시험|복잡|쓸|계산/.test(reply)) {
+      return true;
+    }
+
+    const asksFact = /(잠|밥|급식|친구|멍|게임|엄마|아빠|진로|꿈|시험|전학)/.test(teacher);
+    if (asksFact) {
+      const topic = teacher.match(/(잠|밥|급식|친구|멍|게임|엄마|아빠|진로|꿈|시험|전학|수학)/);
+      if (topic && topic[1] && reply.indexOf(topic[1]) < 0 && reply.length < 25) {
+        // 너무 짧고 주제 단어가 없으면 의
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /** 학생이 교사처럼 설득하거나, 사례 문제와 반대로 돌변하는 답 차단 */
@@ -387,6 +478,8 @@ const StudentAI = (function () {
     if (t.length > 180) return true;
     if (isCounselorSpeak(t)) return true;
     if (isNonsensical(t)) return true;
+    if (isBanmal(t)) return true;
+    if (ignoresTeacher(t, teacherMessage)) return true;
     if (breaksCharacter(t, caseData, phaseIndex)) return true;
     if (/들어가도\s*돼요|오늘은\s*그만|상담\s*끝/.test(t)) return true;
 
@@ -528,12 +621,13 @@ const StudentAI = (function () {
       return ai;
     }
 
-    // 품질 필터가 까다로울 때: 캐릭터만은 지켜야 함
+    // 품질 필터가 까다로울 때: 캐릭터·존댓말만은 지켜야 함
     if (
       ai &&
       ai.length >= 4 &&
       !isNonsensical(ai) &&
       !isCounselorSpeak(ai) &&
+      !isBanmal(ai) &&
       !breaksCharacter(ai, caseData, phaseIndex)
     ) {
       return ai;
@@ -550,6 +644,7 @@ const StudentAI = (function () {
         ai.length >= 4 &&
         !isNonsensical(ai) &&
         !isCounselorSpeak(ai) &&
+        !isBanmal(ai) &&
         !breaksCharacter(ai, caseData, phaseIndex)
       ) {
         return ai;
