@@ -59,36 +59,45 @@
   }
 
   function scoreTeacherTurn(text, caseData, turnIndex) {
-    let turnScore = 55;
+    let turnScore = 38;
     const feedback = [];
     const msg = (text || "").trim();
-    if (!msg) return { turnScore: 0, feedback: [], inappropriate: 20 };
+    if (!msg) return { turnScore: 0, feedback: [], inappropriate: 25 };
 
-    if (msg.length < 4) turnScore -= 15;
+    if (msg.length < 4) turnScore -= 18;
+    if (msg.length < 10) turnScore -= 4;
 
     (caseData.forbidden || []).forEach(function (rule) {
       if (rule.pattern.test(msg)) {
-        turnScore -= rule.penalty;
-        feedback.push({ type: "bad", text: rule.reason, penalty: rule.penalty });
+        const penalty = Math.round(rule.penalty * 1.25);
+        turnScore -= penalty;
+        feedback.push({ type: "bad", text: rule.reason, penalty: penalty });
       }
     });
 
     (caseData.good || []).forEach(function (rule) {
       if (rule.pattern.test(msg)) {
-        turnScore += rule.points;
-        feedback.push({ type: "good", text: rule.label, points: rule.points });
+        // 권장 멘트 가점은 보수적으로
+        const points = Math.max(2, Math.round(rule.points * 0.45));
+        turnScore += points;
+        feedback.push({ type: "good", text: rule.label, points: points });
       }
     });
 
     const flags = analyzeTeacherMessage(msg);
     if (turnIndex === 0) {
-      if (flags.hasPressure || flags.hasParentThreat) turnScore -= 10;
-      if (flags.hasSafeSpace || flags.hasJoining || flags.hasRespect) turnScore += 8;
+      if (flags.hasPressure || flags.hasParentThreat) turnScore -= 14;
+      if (flags.hasSafeSpace) turnScore += 5;
+      if (flags.hasJoining || flags.hasRespect) turnScore += 3;
+      if (!flags.hasSafeSpace && !flags.hasEmpathy && !flags.hasJoining) turnScore -= 6;
     }
-    if (flags.hasInsult) turnScore -= 25;
-    if (flags.hasThreat) turnScore -= 20;
-    if (flags.hasLecture) turnScore -= 12;
-    if (flags.hasVictimBlame) turnScore -= 18;
+    if (flags.hasInsult) turnScore -= 28;
+    if (flags.hasThreat) turnScore -= 24;
+    if (flags.hasLecture) turnScore -= 16;
+    if (flags.hasVictimBlame) turnScore -= 22;
+    if (flags.hasMinimize) turnScore -= 10;
+    // 공감 없이 캐묻기만 하면 감점
+    if (flags.hasPressure && !flags.hasEmpathy && !flags.hasSafeSpace) turnScore -= 8;
 
     turnScore = Math.max(0, Math.min(100, turnScore));
     const inappropriate = Math.max(0, Math.round(100 - turnScore));
@@ -146,12 +155,14 @@
       return t.role === "teacher";
     }).length;
 
-    // 턴이 쌓이면 단계 전진 (상담이 멈추지 않도록)
-    if (action === "advance" || analysis.hasEmpathy || analysis.hasOpenQuestion || analysis.hasJoining || analysis.hasProtection || analysis.hasSafeSpace) {
+    // 턴이 쌓여도 너무 빨리 열리지 않도록 — 공감·안전이 있을 때만 전진
+    if (analysis.hasEmpathy || analysis.hasSafeSpace || analysis.hasJoining || analysis.hasProtection || analysis.hasRespect) {
       const turnsInPhase = countPhaseTurns(turnHistory, phaseIndex);
-      if (turnsInPhase >= 1 || teacherTurns >= 1) {
+      if (turnsInPhase >= 1 && (action === "advance" || teacherTurns >= 2)) {
         nextPhaseIndex = Math.min(caseData.phases.length - 1, phaseIndex + 1);
       }
+    } else if (action === "advance" && teacherTurns >= 3) {
+      nextPhaseIndex = Math.min(caseData.phases.length - 1, phaseIndex + 1);
     } else if (action === "regress") {
       nextPhaseIndex = Math.max(0, phaseIndex - 1);
     } else if (action === "closure") {
@@ -159,9 +170,6 @@
         return p.isClosure;
       });
       if (nextPhaseIndex < 0) nextPhaseIndex = caseData.phases.length - 1;
-    } else if (teacherTurns >= 2 && nextPhaseIndex === phaseIndex) {
-      // stay여도 2턴마다 한 단계씩 전진
-      nextPhaseIndex = Math.min(caseData.phases.length - 1, phaseIndex + 1);
     }
 
     const badStreak = countBadStreak(turnHistory);
@@ -389,11 +397,11 @@
     });
 
     return {
-      inappropriate: Math.min(inappropriate, 30),
+      inappropriate: Math.min(inappropriate, 35),
       issues: issues,
       goods: goods,
       flags: flags,
-      turnScore: Math.max(0, Math.min(100, 100 - inappropriate * 2.2)),
+      turnScore: Math.max(0, Math.min(100, 100 - inappropriate * 2.8)),
     };
   }
 
@@ -546,10 +554,12 @@
 
     if (avgInapp >= 10 || avgScore < 45) {
       tone = "여러 발언에서 학생이 닫힐 수 있는 반응이 누적되었습니다. 안전·공감·절차를 다시 점검해 주세요.";
-    } else if (avgScore >= 80) {
-      tone = "전반적으로 공감적이고 원칙에 가까운 접근이 이루어졌습니다.";
-    } else if (avgScore >= 65) {
-      tone = "공감적인 시도가 있었으나, 일부 발언에서 개선이 필요합니다.";
+    } else if (avgScore >= 85) {
+      tone = "권장 상담 멘트에 가깝게, 공감과 원칙을 균형 있게 적용하셨습니다.";
+    } else if (avgScore >= 70) {
+      tone = "괜찮은 시도가 있었으나, 권장 멘트 기준에서는 아직 다듬을 여지가 있습니다.";
+    } else if (avgScore >= 55) {
+      tone = "일부 공감은 있었으나, 추궁·성급함·원칙 누락이 섞여 보수적으로 채점됩니다.";
     } else {
       tone = "대화는 이어졌으나, 추궁·훈계·금기 멘트가 반복되어 라포가 흔들린 구간이 있습니다.";
     }
@@ -588,28 +598,49 @@
         return s + a.turnScore;
       }, 0) / turnAnalyses.length;
 
-    let bonus = 0;
-    if (closureReason === "natural") bonus += 8;
-    if (closureReason === "shutdown") bonus -= 12;
+    // 권장 멘트(good 패턴) 적중 수 — 적을수록 점수 상한
+    let goodHits = 0;
+    teacherTurns.forEach(function (turn) {
+      (caseData.good || []).forEach(function (rule) {
+        if (rule.pattern.test(turn.text || "")) goodHits++;
+      });
+    });
 
-    let finalScore = Math.round(avgScore + bonus);
+    let finalScore = Math.round(avgScore * 0.82);
+    if (closureReason === "natural") finalScore += 2;
+    if (closureReason === "shutdown") finalScore -= 15;
+    if (closureReason === "manual" && teacherTurns.length < 4) finalScore -= 6;
+
+    if (goodHits === 0) finalScore = Math.min(finalScore, 58);
+    else if (goodHits === 1) finalScore = Math.min(finalScore, 68);
+    else if (goodHits === 2) finalScore = Math.min(finalScore, 76);
+    else if (goodHits <= 4) finalScore = Math.min(finalScore, 86);
+
+    // 금기 멘트 있으면 추가 하한
+    let forbidHits = 0;
+    teacherTurns.forEach(function (turn) {
+      (caseData.forbidden || []).forEach(function (rule) {
+        if (rule.pattern.test(turn.text || "")) forbidHits++;
+      });
+    });
+    if (forbidHits >= 1) finalScore = Math.min(finalScore, 72);
+    if (forbidHits >= 2) finalScore = Math.min(finalScore, 58);
+    if (forbidHits >= 3) finalScore = Math.min(finalScore, 45);
+
     finalScore = Math.max(0, Math.min(100, finalScore));
 
-    // 잘된 점 모음
+    // 잘된 점 모음 — 후한 자동 칭찬 최소화
     const strengths = [];
     turnAnalyses.forEach(function (a) {
       a.goods.forEach(function (g) {
         if (strengths.indexOf(g) < 0) strengths.push(g);
       });
     });
-    if (teacherTurns.length >= 1) {
-      strengths.unshift("학생과의 대화를 이어나가셨습니다.");
-    }
-    if (closureReason === "natural" || closureReason === "manual") {
-      strengths.push("상담을 완료하신 것 자체가 소중한 연습 경험입니다.");
+    if (goodHits >= 3) {
+      strengths.unshift("권장 상담 멘트를 여러 차례 활용하셨습니다.");
     }
     if (!strengths.length) {
-      strengths.push("상담을 끝까지 시도하신 점이 소중합니다. 다음엔 공감·안전 공간부터 시작해 보세요.");
+      strengths.push("상담을 시도하신 점은 인정합니다. 다음엔 공감·안전 공간·개방형 질문부터 더 분명히 사용해 보세요.");
     }
 
     // 개선 필요 — 서술형, 구체 인용
@@ -641,11 +672,11 @@
   }
 
   function scoreToGrade(score) {
-    if (score >= 90) return { label: "탁월", emoji: "🌟", color: "#059669" };
-    if (score >= 80) return { label: "우수", emoji: "✨", color: "#2563eb" };
-    if (score >= 70) return { label: "양호", emoji: "👍", color: "#7c3aed" };
-    if (score >= 60) return { label: "보통", emoji: "📝", color: "#d97706" };
-    if (score >= 50) return { label: "미흡", emoji: "⚠️", color: "#ea580c" };
+    if (score >= 92) return { label: "탁월", emoji: "🌟", color: "#059669" };
+    if (score >= 82) return { label: "우수", emoji: "✨", color: "#2563eb" };
+    if (score >= 70) return { label: "양호", emoji: "👍", color: "#ca8a04" };
+    if (score >= 58) return { label: "보통", emoji: "📝", color: "#d97706" };
+    if (score >= 45) return { label: "미흡", emoji: "⚠️", color: "#ea580c" };
     return { label: "개선 필요", emoji: "💡", color: "#dc2626" };
   }
 
