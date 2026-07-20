@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>상담 실전연습 게임 — 수학교사를 위한 학생맞춤 상담기법</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="header-icon" aria-hidden="true">🎯</div>
+        <div>
+          <h1>상담 실전연습 게임</h1>
+          <p class="subtitle">수학교사를 위한 학생맞춤 상담기법 · 11가지 사례</p>
+        </div>
+      </header>
+
+      <!-- 홈: 사례 선택 -->
+      <section id="homeScreen" class="screen">
+        <div id="caseGrid" class="case-grid"></div>
+      </section>
+
+      <!-- 게임: 상담 진행 -->
+      <section id="gameScreen" class="screen hidden">
+        <div class="game-header card">
+          <h2 id="caseTitle"></h2>
+          <p id="caseMeta" class="case-meta"></p>
+          <p id="caseSituation" class="case-situation"></p>
+          <div class="turn-bar">
+            <span id="turnCounter">0 / 30 회</span>
+            <button id="endBtn" type="button" class="btn btn-outline btn-sm">상담 종료</button>
+          </div>
+        </div>
+
+        <div class="chat-container card">
+          <div id="chatLog" class="chat-log" role="log" aria-live="polite"></div>
+          <div id="typingIndicator" class="typing hidden">
+            <span></span><span></span><span></span>
+            AI 학생이 답변하는 중…
+          </div>
+          <form id="chatForm" class="input-area">
+            <label for="teacherInput" class="sr-only">교사 멘트 입력</label>
+            <textarea
+              id="teacherInput"
+              rows="2"
+              placeholder="교사 멘트를 입력하세요… (Enter: 전송, Shift+Enter: 줄바꿈)"
+              maxlength="500"
+            ></textarea>
+            <button id="sendBtn" type="submit" class="btn btn-primary">전송</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- 결과 -->
+      <section id="resultScreen" class="screen hidden">
+        <div class="result-header card">
+          <h2>상담 평가 결과</h2>
+          <div class="score-display">
+            <svg class="score-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="score-ring-bg" cx="60" cy="60" r="54" />
+              <circle id="scoreCircle" class="score-ring-fill" cx="60" cy="60" r="54" />
+            </svg>
+            <div class="score-text">
+              <span id="scoreValue" class="score-number">0</span>
+              <span class="score-unit">/ 100</span>
+              <span id="gradeLabel" class="grade-label"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card feedback-block">
+          <h3><span class="fb-icon" aria-hidden="true">📋</span> 종합 평가</h3>
+          <p id="overallSummary" class="overall-summary"></p>
+        </div>
+
+        <div class="card feedback-block">
+          <h3><span class="fb-icon good" aria-hidden="true">✓</span> 잘된 점</h3>
+          <ul id="feedbackStrengths" class="feedback-list strengths-list"></ul>
+        </div>
+
+        <div class="card feedback-block improve-card">
+          <h3><span class="fb-icon warn" aria-hidden="true">📌</span> 개선 필요</h3>
+          <ul id="feedbackImprovements" class="feedback-list improve-list"></ul>
+        </div>
+
+        <div class="card feedback-block legal-card">
+          <h3><span class="fb-icon legal" aria-hidden="true">⚖️</span> <span id="legalTitle">법적·원칙 근거</span></h3>
+          <p id="legalBody" class="legal-body"></p>
+          <p id="legalBulletTitle" class="legal-bullet-title"></p>
+          <ul id="legalBullets" class="legal-bullets"></ul>
+        </div>
+
+        <div id="exampleCompare" class="example-compare"></div>
+
+        <div class="result-actions">
+          <button id="restartBtn" type="button" class="btn btn-primary">같은 사례 다시 하기</button>
+          <button id="homeBtn" type="button" class="btn btn-outline">사례 선택으로</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="names.js"></script>
+    <script src="cases.js"></script>
+    <script src="student-ai.js"></script>
+    <script src="evaluator.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>
