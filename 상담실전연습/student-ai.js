@@ -323,37 +323,55 @@ const StudentAI = (function () {
     }
   }
 
+  async function fetchWithTimeout(fn, ms) {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = controller
+      ? setTimeout(function () {
+          controller.abort();
+        }, ms)
+      : null;
+    try {
+      return await fn(controller ? controller.signal : undefined);
+    } catch (e) {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   async function callLiveAi(caseData, teacherMessage, history, trust, analysis) {
     const messages = buildChatMessages(caseData, teacherMessage, history, trust);
-    const maxAttempts = 5;
+    const overallDeadline = Date.now() + 16000;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-      const timer = controller
-        ? setTimeout(function () {
-            controller.abort();
-          }, 45000)
-        : null;
-      const signal = controller ? controller.signal : undefined;
+    // 각 API는 짧은 개별 타임아웃 — 한 요청이 입력을 오래 잠그지 않음
+    let ai = await fetchWithTimeout(function (signal) {
+      return callGemini(messages, signal);
+    }, 7000);
 
-      try {
-        let ai = await callGemini(messages, signal);
-        if (!ai || isBadReply(ai, history, teacherMessage, caseData)) {
-          ai = await callPollinations(messages, signal);
-        }
-        // 실패 시 온도만 다른 재요청처럼 한 번 더 pollinations
-        if ((!ai || isBadReply(ai, history, teacherMessage, caseData)) && attempt > 0) {
-          await sleep(800);
-          ai = await callPollinations(messages, signal);
-        }
-        if (ai && !isBadReply(ai, history, teacherMessage, caseData)) {
-          return ai;
-        }
-      } finally {
-        if (timer) clearTimeout(timer);
+    if ((!ai || isBadReply(ai, history, teacherMessage, caseData)) && Date.now() < overallDeadline) {
+      ai = await fetchWithTimeout(function (signal) {
+        return callPollinations(messages, signal);
+      }, 9000);
+    }
+
+    if (ai && !isBadReply(ai, history, teacherMessage, caseData)) {
+      return ai;
+    }
+
+    // 품질 필터가 까다로울 때: 의미 있는 답이 있으면 한 번 허용
+    if (ai && ai.length >= 4 && !isNonsensical(ai) && !isCounselorSpeak(ai)) {
+      return ai;
+    }
+
+    // 마지막 한 번 더 Pollinations (짧은 재시도)
+    if (Date.now() < overallDeadline - 2000) {
+      await sleep(400);
+      ai = await fetchWithTimeout(function (signal) {
+        return callPollinations(messages, signal);
+      }, 7000);
+      if (ai && ai.length >= 4 && !isNonsensical(ai) && !isCounselorSpeak(ai)) {
+        return ai;
       }
-
-      await sleep(1500 + attempt * 2000);
     }
 
     return null;

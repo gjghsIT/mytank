@@ -206,13 +206,23 @@
       throw new Error("StudentAI unavailable");
     }
 
-    const reply = await StudentAI.generateReply(
-      caseData,
-      teacherMessage,
-      turnHistory,
-      nextPhaseIndex,
-      analysis
-    );
+    // 전체 대기 상한 — 입력이 영구 잠기지 않도록
+    const reply = await Promise.race([
+      StudentAI.generateReply(
+        caseData,
+        teacherMessage,
+        turnHistory,
+        nextPhaseIndex,
+        analysis
+      ),
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          const err = new Error("AI_TIMEOUT");
+          err.code = "AI_TIMEOUT";
+          reject(err);
+        }, 20000);
+      }),
+    ]);
     message = reply.message;
 
     // 교사가 분명히 상담을 마무리할 때만 종료 (「다음 시간」 제안은 종결이 아님)

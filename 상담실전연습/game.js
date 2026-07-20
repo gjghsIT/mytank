@@ -2,6 +2,7 @@
   "use strict";
 
   const MAX_TURNS = 30;
+  let waitingReply = false;
 
   const els = {};
   let state = {
@@ -178,6 +179,7 @@
     els.caseSituation.textContent = caseData.situation;
     els.chatLog.innerHTML = "";
     els.teacherInput.value = "";
+    waitingReply = false;
     els.teacherInput.disabled = false;
     els.sendBtn.disabled = false;
     els.endBtn.disabled = false;
@@ -201,8 +203,19 @@
     }, 100);
   }
 
+  function setInputLocked(locked) {
+    waitingReply = !!locked;
+    if (els.teacherInput) els.teacherInput.disabled = !!locked || state.isEnded;
+    if (els.sendBtn) els.sendBtn.disabled = !!locked || state.isEnded;
+    showTyping(!!locked && !state.isEnded);
+  }
+
   function sendTeacherMessage() {
     if (state.isEnded || state.screen !== "game") return;
+    if (waitingReply) {
+      showToast("학생 답변을 기다리는 중입니다…");
+      return;
+    }
 
     const input = els.teacherInput || document.getElementById("teacherInput");
     if (!input) return;
@@ -237,15 +250,11 @@
 
       input.value = "";
       updateTurnCounter();
-
-      input.disabled = true;
-      if (els.sendBtn) els.sendBtn.disabled = true;
-      showTyping(true);
+      setInputLocked(true);
       respondAsStudent(text);
     } catch (err) {
       console.error(err);
-      input.disabled = false;
-      if (els.sendBtn) els.sendBtn.disabled = false;
+      setInputLocked(false);
       showToast("전송 중 오류가 발생했습니다. 페이지를 새로고침해 주세요.");
     }
   }
@@ -259,7 +268,6 @@
         state.history
       );
 
-      showTyping(false);
       state.phaseIndex = response.phaseIndex;
 
       const client = getClientMeta(state.caseData);
@@ -270,11 +278,8 @@
         phaseIndex: response.phaseIndex,
       });
 
-      els.teacherInput.disabled = false;
-      els.sendBtn.disabled = false;
-      els.teacherInput.focus();
-
       if (response.isClosure || response.forcedClosure) {
+        setInputLocked(false);
         const reason = response.forcedClosure ? "shutdown" : "natural";
         setTimeout(function () {
           endCounseling(reason);
@@ -283,14 +288,15 @@
       }
 
       if (state.turnCount >= MAX_TURNS) {
+        setInputLocked(false);
         setTimeout(function () {
           endCounseling("maxTurns");
         }, 500);
+        return;
       }
     } catch (err) {
       console.error(err);
-      showTyping(false);
-      // AI 실패 시 로컬 대본으로 대체하지 않음 — 교사 멘트는 유지, 재전송 유도
+      // AI 실패 시 — 교사 멘트 복구 후 다시 보낼 수 있게
       if (state.history.length && state.history[state.history.length - 1].role === "teacher") {
         const last = state.history.pop();
         state.turnCount = Math.max(0, state.turnCount - 1);
@@ -298,17 +304,16 @@
         if (els.teacherInput && last && last.text) {
           els.teacherInput.value = last.text;
         }
-        // 마지막 교사 말풍선 제거
         const bubbles = els.chatLog && els.chatLog.querySelectorAll(".message-teacher");
         if (bubbles && bubbles.length) {
           const wrap = bubbles[bubbles.length - 1];
           if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
         }
       }
-      els.teacherInput.disabled = false;
-      els.sendBtn.disabled = false;
-      showToast("AI 응답을 받지 못했습니다. 인터넷 연결 후 다시 전송해 주세요.");
-      els.teacherInput.focus();
+      showToast("AI 응답이 지연되었습니다. 다시 전송해 주세요.");
+    } finally {
+      setInputLocked(false);
+      if (els.teacherInput && !state.isEnded) els.teacherInput.focus();
     }
   }
 
