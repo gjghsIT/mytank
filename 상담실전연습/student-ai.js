@@ -90,7 +90,8 @@ const StudentAI = (function () {
   function cleanAiText(text) {
     return String(text || "")
       .replace(/^["'「『]|["'」』]$/g, "")
-      .replace(/^(학생|학부모|나)\s*[:：]\s*/i, "")
+      .replace(/^(학생|학부모|나|assistant)\s*[:：\-]\s*/i, "")
+      .replace(/^\[학생\]\s*/i, "")
       .replace(/\n+/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim()
@@ -143,46 +144,165 @@ const StudentAI = (function () {
 
   function buildSystemPrompt(caseData, trustLevel) {
     const isParent = caseData.clientRole === "parent";
-    const roleLine = isParent
-      ? "당신은 한국 학부모입니다. 이름은 " + caseData.studentName + "입니다."
-      : "당신은 한국 " +
-        (caseData.grade || "중고등") +
-        " 학생 " +
-        caseData.studentName +
-        "입니다. 실제 학교 상담실에서 말하는 학생처럼 자연스럽게 하세요.";
+    const name = caseData.studentName || (isParent ? "학부모" : "학생");
+
+    if (isParent) {
+      return (
+        "역할: 당신은 학교 상담에 온 학부모 '" +
+        name +
+        "'입니다. 교사가 아닙니다. 상담사가 아닙니다.\n" +
+        "상황: " +
+        caseData.situation +
+        "\n" +
+        caseConcreteHints(caseData) +
+        "\n신뢰도: " +
+        trustLevel +
+        "/100\n" +
+        trustBehaviorGuide(trustLevel, true) +
+        "\n\n절대 금지: 상담 진행 방식 묻기, '말씀해 주세요', '도와드릴까요', 교사처럼 가르치기.\n" +
+        "출력: 학부모 대사만 1~3문장."
+      );
+    }
 
     return (
-      roleLine +
-      "\n상황: " +
+      "역할 고정: 당신은 반드시 학생 '" +
+      name +
+      "'(" +
+      (caseData.grade || "중고등") +
+      ")입니다.\n" +
+      "상대방은 '교사'입니다. 당신은 상담을 받는 학생이지, 상담을 진행하는 사람이 아닙니다.\n" +
+      "상황: " +
       caseData.situation +
       "\n" +
       caseConcreteHints(caseData) +
-      "\n교사 신뢰도: " +
+      "\n교사에 대한 신뢰도: " +
       trustLevel +
       "/100\n" +
-      trustBehaviorGuide(trustLevel, isParent) +
-      "\n\n대화 규칙:\n" +
-      "1. 교사의 직전 말에 맞춰 자연스럽게 대답하세요. 동문서답 금지.\n" +
-      "2. 1~3문장. 대사만 출력(따옴표·해설·이름표 금지).\n" +
-      "3. 추상적 감정말만 하지 말고 구체 사실(시간·장소·사람·성적·행동)을 넣으세요. 신뢰가 낮아도 '모르겠어요. 요즘 잠만…'처럼 한 조각은 가능.\n" +
-      "4. 공감·안전이 쌓이기 전에는 쉽게 마음을 다 열거나 순종하지 마세요. 그래도 대화는 이어가세요.\n" +
-      "5. 절대 먼저 상담을 끝내지 마세요. 「들어가도 돼요」「오늘은 그만」「다음에 올게요」「고마워요 선생님(종결)」 금지. 교사가 분명히 마칠 때만 짧게 응하세요.\n" +
-      "6. 훈계·추궁에는 짧고 닫힌 반응. 이전 대사 반복 금지.\n" +
-      "7. 한국 중고등학생/학부모 말투. 번역투·상담 교과서 말투 금지."
+      trustBehaviorGuide(trustLevel, false) +
+      "\n\n절대 하지 말 것(교사용 멘트):\n" +
+      "- 상담 진행·방식·매뉴얼을 묻거나 제안하기\n" +
+      "- 「어떤 방식으로 진행」「구체적으로 생각해 보셨나요」「말씀해 주세요」「필요하면 언제든」「도와드릴게요」\n" +
+      "- 교사를 상담하듯 질문하기, 안내하기, 정리하기\n" +
+      "\n반드시 할 것:\n" +
+      "- 학생 처지에서만 말하기 (고민·방어·짜증·망설임·구체 사실)\n" +
+      "- 교사 말에 반응하기 (욕/무시면 상처·닫힘, 공감이면 조금씩 열림)\n" +
+      "- 1~3문장, 대사만 (따옴표·이름표·해설 금지)\n" +
+      "- 먼저 상담을 끝내지 않기"
     );
   }
 
   function buildChatMessages(caseData, teacherMessage, history, trustLevel) {
+    const name = caseData.studentName || "학생";
     const messages = [{ role: "system", content: buildSystemPrompt(caseData, trustLevel) }];
-    (history || []).slice(-12).forEach(function (t) {
+
+    // 역할 고정용 짧은 예시
+    messages.push({
+      role: "user",
+      content: "[교사] 요즘 좀 힘들어 보이는데, 괜찮아?",
+    });
+    messages.push({
+      role: "assistant",
+      content: "…그냥요. 별거 아니에요.",
+    });
+    messages.push({
+      role: "user",
+      content: "[교사] 천천히 말해도 돼. 요즘 잠은 어때?",
+    });
+    messages.push({
+      role: "assistant",
+      content: "한 2주쯤부터 밤에 잠이 잘 안 와요…",
+    });
+
+    (history || []).slice(-10).forEach(function (t) {
       if (t.role === "teacher") {
-        messages.push({ role: "user", content: String(t.text || "") });
+        messages.push({ role: "user", content: "[교사] " + String(t.text || "") });
       } else if (t.role === "student") {
         messages.push({ role: "assistant", content: String(t.text || "") });
       }
     });
-    messages.push({ role: "user", content: String(teacherMessage || "") });
+
+    messages.push({
+      role: "user",
+      content:
+        "[교사] " +
+        String(teacherMessage || "") +
+        "\n\n→ 위 교사 말에 대한 '" +
+        name +
+        "'(학생/내담자)의 대답만 쓰세요. 상담사·교사처럼 말하면 안 됩니다.",
+    });
     return messages;
+  }
+
+  function isCounselorSpeak(text) {
+    const t = String(text || "");
+    return /진행하|어떤\s*방식|구체적으로\s*생각|말씀해\s*주|말씀해\s*보|도와드릴|필요하면\s*언제든|궁금한\s*(점|게)|더\s*이야기해|편하게\s*말|들어드릴|상담을\s*어떻게|매뉴얼|정리해\s*보|생각해\s*보셨|원하시는\s*방향|제가\s*도와|이야기해\s*보실래요|질문\s*있으신가요/.test(
+      t
+    );
+  }
+
+  function isWeakReply(text) {
+    const t = String(text || "").trim();
+    if (t.length < 4) return true;
+    if (/^(네|아니요|몰라요|그냥요|별로요|알겠어요)[\.…]*$/i.test(t)) return true;
+    if (/들어가도|오늘은\s*그만|상담\s*끝|다음에\s*올게요/.test(t)) return true;
+    if (isCounselorSpeak(t)) return true;
+    return false;
+  }
+
+  /** 역할 붕괴 시 학생 톤 비상 답 (상담사 톤 금지) */
+  function emergencyStudentReply(caseData, teacherMessage, trust, analysis) {
+    const id = caseData.id;
+    const msg = teacherMessage || "";
+    if (analysis && (analysis.hasInsult || analysis.hasThreat || analysis.hasLecture || analysis.hasVictimBlame)) {
+      return pick([
+        "…왜 그렇게까지 말씀하세요.",
+        "…말하기 싫어요.",
+        "…그냥 나갈래요.",
+        "…제가 뭘 잘못했는데요.",
+      ], hash(msg + trust));
+    }
+    if (trust < 30) {
+      const closed = {
+        1: ["…별일 없어요.", "…그냥 피곤해서요.", "…모르겠어요."],
+        2: ["…농구하다가요.", "…별거 아니에요.", "…왜요."],
+        3: ["…뭐요.", "…그냥요.", "…폰 봐요."],
+        4: ["…저…", "…말하기 좀…", "…무서워요."],
+        5: ["우리 애가 그런 애가 아니에요.", "편견 아니에요?"],
+        6: ["…이과 하기 싫어요.", "…엄마가 의대만 가래요.", "…수학 보면 답답해요."],
+        7: ["…하고 싶은 게 없어요.", "…모르겠어요."],
+        8: ["…저 수학 머리 없어요.", "…안 돼요."],
+        9: ["…왜 배워야 해요?", "…복잡하잖아요."],
+        10: ["…시험만 생각하면 떨려요.", "…머리가 하얘져요."],
+        11: ["…아직 적응이 안 돼요.", "…점심 혼자 먹어요."],
+      };
+      return pick(closed[id] || closed[1], hash(msg));
+    }
+    const open = {
+      1: ["요즘 잠이 잘 안 와요…", "수업 때 자꾸 엎드려요.", "급식도 잘 안 먹게 됐어요."],
+      2: ["…집에서 가끔 무서울 때가 있어요.", "…이건 말할게요. 더는…"],
+      3: ["게임할 땐 괜찮은데 학교는…", "발로란트요. 거기선 좀 살 것 같아요."],
+      4: ["단톡방에서요…", "점심도 같이 안 먹게 해요."],
+      5: ["그럼 우리 애는 어떻게 되는 거예요?", "직접 연락하면 안 되나요?"],
+      6: ["국영은 괜찮은데 수학만…", "중2 때 함수부터 막혔어요."],
+      7: ["앉아서 종일 컴퓨터는 못 할 것 같아요.", "사람 많은 데도 싫어요."],
+      8: ["친구는 한 번에 푸는데 전…", "분수부터 다시요?"],
+      9: ["어제 마트 갔는데… 그게 수학이에요?", "학교 건 너무 복잡해요."],
+      10: ["지금은 한 8 정도…?", "호흡… 해볼게요."],
+      11: ["그림은 좋아해요.", "동아리는… 용기가 안 나요."],
+    };
+    return pick(open[id] || open[1], hash(msg + "o"));
+  }
+
+  function pick(arr, seed) {
+    if (!arr || !arr.length) return "…모르겠어요.";
+    return arr[Math.abs(seed) % arr.length];
+  }
+
+  function hash(str) {
+    let h = 0;
+    const s = String(str || "");
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
   }
 
   async function callPollinations(caseData, teacherMessage, history, trustLevel, signal) {
@@ -195,8 +315,8 @@ const StudentAI = (function () {
         body: JSON.stringify({
           model: "openai",
           messages: messages,
-          temperature: 0.75,
-          max_tokens: 220,
+          temperature: 0.7,
+          max_tokens: 200,
         }),
       });
       if (!res.ok) return null;
@@ -220,9 +340,9 @@ const StudentAI = (function () {
     const messages = buildChatMessages(caseData, teacherMessage, history, trustLevel);
     const flat = messages
       .map(function (m) {
-        if (m.role === "system") return "[설정]\n" + m.content;
-        if (m.role === "user") return "교사: " + m.content;
-        return "학생: " + m.content;
+        if (m.role === "system") return "[역할 설정 — 반드시 지킬 것]\n" + m.content;
+        if (m.role === "user") return m.content;
+        return "[학생] " + m.content;
       })
       .join("\n");
 
@@ -236,8 +356,19 @@ const StudentAI = (function () {
         headers: { "Content-Type": "application/json" },
         signal: signal,
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: flat + "\n\n학생 대사만 출력:" }] }],
-          generationConfig: { temperature: 0.75, maxOutputTokens: 220 },
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text:
+                    flat +
+                    "\n\n중요: 당신은 학생(또는 학부모 내담자)입니다. 상담사/교사 멘트 금지. 학생 대사만 출력:",
+                },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 200 },
         }),
       });
       if (!res.ok) return null;
@@ -255,35 +386,26 @@ const StudentAI = (function () {
     }
   }
 
-  function shouldCloseConversation(caseData, history, trust, teacherMsg, studentMsg) {
-    // 평가기에서 명시적 종결만 사용. AI 쪽 자동 종결은 끔.
+  function shouldCloseConversation() {
     return false;
   }
 
-  function isWeakReply(text) {
-    const t = String(text || "").trim();
-    if (t.length < 4) return true;
-    if (/^(네|아니요|몰라요|그냥요|별로요)[\.…]*$/i.test(t)) return true;
-    if (/들어가도|오늘은\s*그만|상담\s*끝|다음에\s*올게요/.test(t)) return true;
-    return false;
-  }
-
-  async function callLiveAi(caseData, teacherMessage, history, trustLevel) {
+  async function callLiveAi(caseData, teacherMessage, history, trustLevel, analysis) {
     const used = getUsedStudentTexts(history);
-    const maxAttempts = 5;
+    const maxAttempts = 4;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
       const timer = controller
         ? setTimeout(function () {
             controller.abort();
-          }, 50000)
+          }, 45000)
         : null;
       const signal = controller ? controller.signal : undefined;
 
       try {
         let ai = await callGemini(caseData, teacherMessage, history, trustLevel, signal);
-        if (!ai || ai.length < 2) {
+        if (!ai || ai.length < 2 || isWeakReply(ai)) {
           ai = await callPollinations(caseData, teacherMessage, history, trustLevel, signal);
         }
         if (
@@ -296,31 +418,25 @@ const StudentAI = (function () {
         ) {
           return ai;
         }
-        // 약한/종결형 답이면 한 번 더 재시도
-        if (ai && !isWeakReply(ai) && attempt >= 2) return ai;
       } finally {
         if (timer) clearTimeout(timer);
       }
 
-      await sleep(2000 + attempt * 3000);
+      await sleep(1500 + attempt * 2500);
     }
-    return null;
+
+    // 역할 붕괴·실패 시에도 학생 톤으로만 대체
+    return emergencyStudentReply(caseData, teacherMessage, trustLevel, analysis || {});
   }
 
   async function generateReply(caseData, teacherMessage, history, phaseIndex, analysis) {
     const trust = calcTrust(history, analysis);
-    const ai = await callLiveAi(caseData, teacherMessage, history, trust);
-
-    if (!ai) {
-      const err = new Error("AI_UNAVAILABLE");
-      err.code = "AI_UNAVAILABLE";
-      throw err;
-    }
+    const ai = await callLiveAi(caseData, teacherMessage, history, trust, analysis);
 
     return {
-      message: ai,
+      message: ai || emergencyStudentReply(caseData, teacherMessage, trust, analysis || {}),
       trust: trust,
-      shouldClose: shouldCloseConversation(caseData, history, trust, teacherMessage, ai),
+      shouldClose: false,
       source: "ai",
     };
   }
