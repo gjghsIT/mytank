@@ -17,7 +17,7 @@
       href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=20260813c" />
+    <link rel="stylesheet" href="style.css?v=20260814a" />
   </head>
   <body>
     <div class="sky" aria-hidden="true"></div>
@@ -159,6 +159,7 @@
         <div class="card">
           <h2>사진을 다시 찍어 볼까요?</h2>
           <p class="easy-text" id="errorText">인쇄된 글자를 아직 못 읽었어요. 학습지 전체가 나오게 다시 찍어 주세요.</p>
+          <p class="error-detail" id="errorDetail"></p>
         </div>
         <button type="button" class="btn btn-primary" id="retryBtn">다시 찍기</button>
       </section>
@@ -169,6 +170,7 @@
 
     <div id="toast" class="toast" role="status"></div>
 
-    <script src="app.js?v=20260813c"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="app.js?v=20260814a"></script>
   </body>
 </html>

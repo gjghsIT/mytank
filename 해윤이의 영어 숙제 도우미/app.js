@@ -2,74 +2,34 @@
   "use strict";
 
   const API_KEY_STORAGE = "haeyoon_english_helper_gemini_key";
-  const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro", "gemini-1.5-flash"];
+  const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash"];
 
-  const SAFETY_OFF = [
-    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-  ];
+  const OCR_PROMPT =
+    "이 사진은 초등 영어 학습지다.\n" +
+    "인쇄된 활자(교과서·학습지에 찍힌 글)만 위부터 아래로 그대로 옮겨 적어라.\n" +
+    "연필·볼펜 손글씨, 학생이 쓴 답, 낙서, 손그림 동그라미는 무시하라.\n" +
+    "인쇄된 빈칸은 ____ 로 남겨라.\n" +
+    "설명, JSON, 인사 없이 옮긴 글만 출력하라.";
 
-  const OCR_PROMPT = `너는 초등 영어 학습지 OCR 엔진이다.
-사진에서 **인쇄된(활자/타이포/교과서·학습지 인쇄) 글자만** 읽는다.
-
-반드시 무시할 것:
-- 연필·볼펜·사인펜으로 직접 쓴 손글씨
-- 학생이 적어 넣은 답, 낙서, 밑줄, 동그라미, 체크
-- 손글씨로 보이는 모든 글자
-
-읽을 것:
-- 인쇄된 한국어 지시문, 문제 번호, 보기(word bank)
-- 인쇄된 영어 단어·문장
-- 인쇄된 빈칸은 ____ 로 유지
-
-위→아래, 왼쪽→오른쪽 순서로 가능한 한 전부 옮긴다.
-흐릿해도 인쇄 활자면 추측해서 읽는다. 손글씨는 추측하지 말고 빈칸으로 둔다.
-
-JSON만:
-{"printedText":"옮긴 전체 글","hasPrintedText":true}`;
-
-  const STRUCTURE_PROMPT = `너는 초등학생(한국, 3~6학년) 영어 숙제 도우미야.
-아래에 **인쇄된 글만 옮긴 텍스트**가 있다. 사진이 있으면 인쇄된 레이아웃 확인용이다.
-손글씨·학생이 쓴 답은 이미 빠져 있다. 절대 손글씨를 문제로 쓰지 마라.
+  const STRUCTURE_PROMPT = `너는 초등학생 영어 숙제 도우미야.
+아래 글은 학습지에서 인쇄된 글만 옮긴 것이다. 손글씨는 이미 빠져 있다.
 
 할 일:
-1) 학습지를 문제 번호 순서대로 나눈다.
-2) 각 문제에 **인쇄되어 있는** 영어 단어만 고른다. 빈칸 정답, 손글씨 답은 넣지 않는다.
-3) 각 영어 단어의 뜻은 초등 쉬운 한국어로 1개 또는 2개만.
-4) 참고자료 인쇄 글이 있으면 그 뜻을 우선한다.
-5) 힌트 2개. 생각의 방향만. 정답 금지.
-
-힌트 절대 금지:
-- 정답 영어 단어, 한국어 정답, 빈칸에 넣을 말
-- 철자, 첫 글자, 글자 수
-- 보기에서 특정 단어를 가리키기
-- 문장 전체를 완성해 주기
-
-1단계 힌트: 문제 유형, 어디를 보면 좋은지, 품사 정도만.
-2단계 힌트: 상황·문장 자리를 조금 더, 그래도 답은 말하지 않는다.
+1) 문제 번호 순서로 나눈다.
+2) 각 문제에 인쇄된 영어 단어만 고른다. 빈칸 정답은 넣지 않는다.
+3) 뜻은 초등 쉬운 한국어로 1~2개만.
+4) 힌트 2개. 정답·철자·빈칸에 넣을 말은 쓰지 않는다.
+1단계: 문제 유형, 품사, 어디를 보면 좋은지만.
+2단계: 상황·문장 자리만 조금 더.
 
 JSON만:
-{
-  "problems": [
-    {
-      "label": "1번",
-      "whatToDo": "빈칸에 알맞은 말을 넣어요.",
-      "englishBits": "I am ____.",
-      "words": [{ "en": "happy", "meanings": ["행복한"] }],
-      "hint1": "1단계 힌트",
-      "hint2": "2단계 힌트"
-    }
-  ]
-}`;
+{"problems":[{"label":"1번","whatToDo":"빈칸에 알맞은 말을 넣어요.","englishBits":"I am ____.","words":[{"en":"happy","meanings":["행복한"]}],"hint1":"1단계","hint2":"2단계"}]}`;
 
   const state = {
     captureMode: "homework",
-    homeworkPrint: "",
-    homeworkColor: "",
-    referencePrint: "",
-    referenceColor: "",
+    homeworkImage: "",
+    referenceImage: "",
+    lastError: "",
     problems: [],
     index: 0,
     hintLevel: 0,
@@ -117,6 +77,19 @@ JSON만:
     }, 2400);
   }
 
+  function fileToDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result || ""));
+      };
+      reader.onerror = function () {
+        reject(new Error("image"));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   function dataUrlToInline(dataUrl) {
     const parts = String(dataUrl || "").split(",");
     const header = parts[0] || "";
@@ -159,8 +132,7 @@ JSON만:
     return loadViaElement(file);
   }
 
-  function drawToJpeg(source, options) {
-    const max = options.max || 2200;
+  function drawToJpeg(source, max, quality) {
     const sw = source.width || source.naturalWidth;
     const sh = source.height || source.naturalHeight;
     const scale = Math.min(1, max / Math.max(sw, sh));
@@ -172,20 +144,20 @@ JSON만:
     ctx.imageSmoothingQuality = "high";
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (options.enhance) {
-      ctx.filter = "contrast(1.45) brightness(1.08) saturate(0.15)";
-    }
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-    ctx.filter = "none";
-    return canvas.toDataURL("image/jpeg", options.quality || 0.92);
+    return canvas.toDataURL("image/jpeg", quality);
   }
 
-  async function preparePhotos(file) {
+  async function prepareImage(file) {
+    const type = String(file.type || "").toLowerCase();
+    const okType = type === "image/jpeg" || type === "image/jpg" || type === "image/png" || type === "image/webp";
+    if (okType && file.size > 0 && file.size <= 3.5 * 1024 * 1024) {
+      return fileToDataUrl(file);
+    }
     const source = await loadOrientedSource(file);
-    const color = drawToJpeg(source, { max: 2200, quality: 0.92, enhance: false });
-    const print = drawToJpeg(source, { max: 2400, quality: 0.93, enhance: true });
+    const jpeg = drawToJpeg(source, 2000, 0.9);
     if (source.close) source.close();
-    return { color: color, print: print };
+    return jpeg;
   }
 
   function parseJsonFromText(text) {
@@ -199,18 +171,37 @@ JSON만:
     return JSON.parse(cleaned.slice(start, end + 1));
   }
 
+  function looksLikeWorksheetText(text) {
+    const t = String(text || "").trim();
+    if (t.length < 8) return false;
+    if (/sorry|cannot|can't read|unable to|이미지를 읽을|글자를 찾을 수 없|보이지 않|no (visible )?text/i.test(t)) {
+      return false;
+    }
+    if (/^\s*\{/.test(t) && t.indexOf("printedText") < 0 && t.indexOf("problems") < 0) return false;
+    return /[A-Za-z가-힣]/.test(t);
+  }
+
+  function extractOcrText(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    try {
+      const parsed = parseJsonFromText(text);
+      const printed = String(parsed.printedText || parsed.text || "").trim();
+      if (printed.length >= 8) return printed;
+    } catch (e) {}
+    if (looksLikeWorksheetText(text)) return text;
+    return "";
+  }
+
   function geminiText(data) {
-    const finish =
-      data && data.candidates && data.candidates[0] && data.candidates[0].finishReason;
-    if (finish === "SAFETY") return "";
-    const parts =
-      data &&
-      data.candidates &&
-      data.candidates[0] &&
-      data.candidates[0].content &&
-      data.candidates[0].content.parts;
+    const cand = data && data.candidates && data.candidates[0];
+    if (!cand) return "";
+    const parts = cand.content && cand.content.parts;
     if (!parts || !parts.length) return "";
     return parts
+      .filter(function (p) {
+        return !p.thought;
+      })
       .map(function (p) {
         return p.text || "";
       })
@@ -222,59 +213,164 @@ JSON만:
     const apiKey = getApiKey();
     if (!apiKey) throw new Error("key");
     options = options || {};
-    let lastErr = null;
-
-    const configs = [];
-    const base = {
-      temperature: options.temperature == null ? 0.15 : options.temperature,
-      maxOutputTokens: options.maxOutputTokens || 8192,
-    };
-    if (options.json) {
-      configs.push(Object.assign({}, base, { responseMimeType: "application/json", mediaResolution: "MEDIA_RESOLUTION_HIGH" }));
-      configs.push(Object.assign({}, base, { mediaResolution: "MEDIA_RESOLUTION_HIGH" }));
-    } else {
-      configs.push(Object.assign({}, base, { mediaResolution: "MEDIA_RESOLUTION_HIGH" }));
-      configs.push(base);
-    }
+    let lastErr = "";
 
     for (let i = 0; i < GEMINI_MODELS.length; i++) {
-      for (let c = 0; c < configs.length; c++) {
-        const url =
-          "https://generativelanguage.googleapis.com/v1beta/models/" +
-          GEMINI_MODELS[i] +
-          ":generateContent?key=" +
-          encodeURIComponent(apiKey);
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: parts }],
-              safetySettings: SAFETY_OFF,
-              generationConfig: configs[c],
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            lastErr = data.error && data.error.message ? data.error.message : "api";
-            if (/API_KEY_INVALID|API key not valid|provided API key/i.test(String(lastErr))) {
-              throw new Error("key");
-            }
-            continue;
+      const model = GEMINI_MODELS[i];
+      const url =
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+        model +
+        ":generateContent?key=" +
+        encodeURIComponent(apiKey);
+      const generationConfig = {
+        temperature: options.temperature == null ? 0.1 : options.temperature,
+        maxOutputTokens: options.maxOutputTokens || 8192,
+      };
+      if (model.indexOf("2.5") >= 0) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+      const ctrl = new AbortController();
+      const timer = setTimeout(function () {
+        ctrl.abort();
+      }, 28000);
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ctrl.signal,
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: parts }],
+            generationConfig: generationConfig,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          lastErr = data.error && data.error.message ? data.error.message : "api " + res.status;
+          if (/API_KEY_INVALID|API key not valid|provided API key/i.test(lastErr)) {
+            throw new Error("key");
           }
-          const text = geminiText(data);
-          if (!text) {
-            lastErr = "empty";
-            continue;
-          }
-          return text;
-        } catch (e) {
-          lastErr = e.message || "net";
-          if (lastErr === "key") throw e;
+          continue;
         }
+        const text = geminiText(data);
+        if (!text) {
+          lastErr = candFinish(data) || "empty";
+          continue;
+        }
+        return text;
+      } catch (e) {
+        if (e.message === "key") throw e;
+        lastErr = e.name === "AbortError" ? "timeout" : e.message || "net";
+      } finally {
+        clearTimeout(timer);
       }
     }
     throw new Error(lastErr || "api");
+  }
+
+  function candFinish(data) {
+    const reason = data && data.candidates && data.candidates[0] && data.candidates[0].finishReason;
+    return reason ? String(reason) : "";
+  }
+
+  function tesseractPrintedOnly(data) {
+    const lines = (data && data.lines) || [];
+    if (!lines.length) return String((data && data.text) || "").trim();
+    const out = [];
+    lines.forEach(function (line) {
+      const words = (line.words || []).filter(function (w) {
+        const t = String(w.text || "").trim();
+        return t && w.confidence >= 58;
+      });
+      if (!words.length) return;
+      out.push(
+        words
+          .map(function (w) {
+            return w.text;
+          })
+          .join(" ")
+      );
+    });
+    const joined = out.join("\n").trim();
+    if (joined.length >= 8) return joined;
+    return String((data && data.text) || "").trim();
+  }
+
+  async function ocrWithTesseract(dataUrl) {
+    if (!window.Tesseract || !window.Tesseract.createWorker) return "";
+    async function run(langs) {
+      const worker = await window.Tesseract.createWorker(langs, 1, {
+        logger: function (m) {
+          if (m.status === "recognizing text") {
+            setLoading("인쇄된 글자를 읽고 있어요", "학습지 활자를 살펴보는 중 " + Math.round((m.progress || 0) * 100) + "%");
+          } else if (m.status && m.status.indexOf("loading") >= 0) {
+            setLoading("글자 읽는 준비를 하고 있어요", "처음 한 번은 조금 걸릴 수 있어요.");
+          }
+        },
+      });
+      try {
+        const res = await worker.recognize(dataUrl);
+        return tesseractPrintedOnly(res.data);
+      } finally {
+        await worker.terminate();
+      }
+    }
+    try {
+      return await run("eng+kor");
+    } catch (e1) {
+      try {
+        return await run("eng");
+      } catch (e2) {
+        state.lastError = e2.message || e1.message || "tesseract";
+        return "";
+      }
+    }
+  }
+
+  async function ocrWithGemini(dataUrl) {
+    const parts = [imagePart(dataUrl), { text: OCR_PROMPT }];
+    const raw = await callGemini(parts, { temperature: 0, maxOutputTokens: 8192 });
+    return extractOcrText(raw);
+  }
+
+  function betterText(a, b) {
+    const ta = String(a || "").trim();
+    const tb = String(b || "").trim();
+    if (ta.length >= tb.length) return ta;
+    return tb;
+  }
+
+  async function ocrPrintedText() {
+    let geminiTextResult = "";
+    let tessText = "";
+
+    setLoading("인쇄된 글자를 읽고 있어요", "학습지의 활자만 찾고 있어요. 손글씨는 건너뛰어요.");
+    try {
+      geminiTextResult = await ocrWithGemini(state.homeworkImage);
+    } catch (e) {
+      state.lastError = e.message || "gemini-ocr";
+    }
+
+    if (!looksLikeWorksheetText(geminiTextResult)) {
+      setLoading("한 번 더 읽고 있어요", "인쇄된 글자를 천천히 살펴보고 있어요.");
+      tessText = await ocrWithTesseract(state.homeworkImage);
+    }
+
+    let printed = betterText(geminiTextResult, tessText);
+
+    if (state.referenceImage && looksLikeWorksheetText(printed)) {
+      try {
+        const refG = await ocrWithGemini(state.referenceImage);
+        if (looksLikeWorksheetText(refG)) printed += "\n\n[참고자료]\n" + refG;
+      } catch (e) {
+        const refT = await ocrWithTesseract(state.referenceImage);
+        if (looksLikeWorksheetText(refT)) printed += "\n\n[참고자료]\n" + refT;
+      }
+    }
+
+    if (!looksLikeWorksheetText(printed)) {
+      throw new Error(state.lastError || "ocr");
+    }
+    return printed;
   }
 
   function normalizeMeanings(raw) {
@@ -307,11 +403,7 @@ JSON만:
       });
     for (let i = 0; i < englishInHint.length; i++) {
       const w = englishInHint[i].toLowerCase();
-      if (
-        ["the", "and", "for", "you", "are", "this", "that", "with", "from", "your"].indexOf(w) >= 0
-      ) {
-        continue;
-      }
+      if (["the", "and", "for", "you", "are", "this", "that", "with", "from", "your"].indexOf(w) >= 0) continue;
       if (!allowed[w]) return true;
     }
     return false;
@@ -386,7 +478,7 @@ JSON만:
       const problem = {
         label: labelMatch ? labelMatch[1] + "번" : i + 1 + "번",
         whatToDo: "인쇄된 문제를 보고 풀어 보세요.",
-        englishBits: chunk.trim().slice(0, 500),
+        englishBits: chunk.trim().slice(0, 800),
         words: extractEnglishWords(chunk),
         hint1: "",
         hint2: "",
@@ -427,75 +519,24 @@ JSON만:
       });
   }
 
-  function photoParts(printUrl, colorUrl) {
-    const parts = [];
-    if (printUrl) parts.push(imagePart(printUrl));
-    if (colorUrl && colorUrl !== printUrl) parts.push(imagePart(colorUrl));
-    return parts;
-  }
-
-  async function ocrPrintedText() {
-    const images = photoParts(state.homeworkPrint, state.homeworkColor);
-    if (state.referencePrint) {
-      images.push(imagePart(state.referencePrint));
-    } else if (state.referenceColor) {
-      images.push(imagePart(state.referenceColor));
-    }
-
-    const attempts = [
-      { label: "homework-print", parts: [imagePart(state.homeworkPrint), { text: OCR_PROMPT + "\n\n첫 사진은 글자 읽기용(대비를 높인 학습지)이다." }] },
-      {
-        label: "both",
-        parts: images.concat([
-          {
-            text:
-              OCR_PROMPT +
-              "\n\n사진은 학습지다. 대비를 높인 사진과 원본이 있을 수 있다. 인쇄 활자만 옮겨라.",
-          },
-        ]),
-      },
-    ];
-
-    let lastErr = null;
-    for (let i = 0; i < attempts.length; i++) {
-      try {
-        const text = await callGemini(attempts[i].parts, { json: true, temperature: 0, maxOutputTokens: 8192 });
-        const parsed = parseJsonFromText(text);
-        const printed = String(parsed.printedText || parsed.text || "").trim();
-        if (printed.length >= 8) return printed;
-        lastErr = "short-ocr";
-      } catch (e) {
-        lastErr = e.message || "ocr";
-      }
-    }
-    throw new Error(lastErr || "ocr");
-  }
-
   async function structureProblems(printedText) {
-    const parts = [
-      {
-        text:
-          STRUCTURE_PROMPT +
-          "\n\n--- 인쇄된 글 (손글씨 제외) ---\n" +
-          printedText +
-          "\n--- 끝 ---",
-      },
-    ];
-    if (state.homeworkColor) parts.push(imagePart(state.homeworkColor));
-    if (state.referenceColor) parts.push(imagePart(state.referenceColor));
-
-    const text = await callGemini(parts, { json: true, temperature: 0.2, maxOutputTokens: 8192 });
-    const parsed = parseJsonFromText(text);
+    const raw = await callGemini(
+      [
+        {
+          text: STRUCTURE_PROMPT + "\n\n--- 인쇄된 글 ---\n" + printedText + "\n--- 끝 ---",
+        },
+      ],
+      { temperature: 0.2, maxOutputTokens: 8192 }
+    );
+    const parsed = parseJsonFromText(raw);
     const problems = normalizeProblems(parsed);
     if (!problems.length) throw new Error("empty-problems");
     return problems;
   }
 
   async function analyzeHomework() {
-    setLoading("인쇄된 글자를 읽고 있어요", "손글씨는 건너뛰고, 학습지에 인쇄된 글만 찾고 있어요.");
     const printedText = await ocrPrintedText();
-
-    setLoading("문제를 나누고 있어요", "단어 뜻과 힌트를 준비하고 있어요. 조금만 기다려 주세요.");
+    setLoading("문제를 나누고 있어요", "단어 뜻과 힌트를 준비하고 있어요.");
     try {
       return await structureProblems(printedText);
     } catch (e) {
@@ -515,16 +556,14 @@ JSON만:
   async function onPhotoPicked(file) {
     if (!file) return;
     try {
-      const photos = await preparePhotos(file);
+      const dataUrl = await prepareImage(file);
       if (state.captureMode === "homework") {
-        state.homeworkPrint = photos.print;
-        state.homeworkColor = photos.color;
-        $("homeworkThumbWrap").innerHTML = '<img alt="찍은 학습지" src="' + photos.color + '" />';
+        state.homeworkImage = dataUrl;
+        $("homeworkThumbWrap").innerHTML = '<img alt="찍은 학습지" src="' + dataUrl + '" />';
         showScreen("refScreen");
         return;
       }
-      state.referencePrint = photos.print;
-      state.referenceColor = photos.color;
+      state.referenceImage = dataUrl;
       await runAnalysis();
     } catch (e) {
       toast("사진을 읽지 못했어요. 다시 찍어 주세요.");
@@ -533,18 +572,19 @@ JSON만:
 
   function friendlyError(err) {
     const msg = String((err && err.message) || err || "");
-    if (msg.indexOf("API key") >= 0 || msg === "key") {
+    if (msg === "key" || /API key/i.test(msg)) {
       return "API 키가 없거나 잘못됐어요. 오른쪽 위 설정에서 다시 저장해 주세요.";
     }
     if (/quota|429|resource exhausted/i.test(msg)) {
       return "지금은 조금 바빠요. 잠시 후 다시 눌러 주세요.";
     }
-    return "인쇄된 글자를 아직 못 읽었어요. 학습지 전체가 나오게 다시 찍어 주세요. 손글씨는 읽지 않아요.";
+    return "인쇄된 글자를 아직 못 읽었어요. 학습지 전체가 나오게 다시 찍어 주세요.";
   }
 
   async function runAnalysis() {
     showScreen("loadingScreen");
-    setLoading("학습지를 준비하고 있어요", "사진을 선명하게 만든 뒤 인쇄된 글자를 읽을게요.");
+    setLoading("학습지를 준비하고 있어요", "인쇄된 글자만 읽을게요. 손글씨는 읽지 않아요.");
+    state.lastError = "";
     try {
       state.problems = await analyzeHomework();
       state.index = 0;
@@ -553,6 +593,7 @@ JSON만:
       showScreen("studyScreen");
     } catch (e) {
       $("errorText").textContent = friendlyError(e);
+      $("errorDetail").textContent = String((e && e.message) || state.lastError || "");
       showScreen("errorScreen");
     }
   }
@@ -665,13 +706,12 @@ JSON만:
   }
 
   function resetAll() {
-    state.homeworkPrint = "";
-    state.homeworkColor = "";
-    state.referencePrint = "";
-    state.referenceColor = "";
+    state.homeworkImage = "";
+    state.referenceImage = "";
     state.problems = [];
     state.index = 0;
     state.hintLevel = 0;
+    state.lastError = "";
     $("homeworkThumbWrap").innerHTML = "";
     $("cameraInput").value = "";
     $("albumInput").value = "";
@@ -737,8 +777,7 @@ JSON만:
     });
 
     $("refSkipBtn").addEventListener("click", function () {
-      state.referencePrint = "";
-      state.referenceColor = "";
+      state.referenceImage = "";
       runAnalysis();
     });
 

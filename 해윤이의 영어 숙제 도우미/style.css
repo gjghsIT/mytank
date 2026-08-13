@@ -456,6 +456,14 @@ input[type="text"] {
   font-size: 32px;
 }
 
+.error-detail {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8a8ab0;
+  word-break: break-word;
+}
+
 .toast {
   position: fixed;
   left: 50%;
