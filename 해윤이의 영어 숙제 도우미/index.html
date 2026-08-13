@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#7ec8ff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="해윤이 숙제" />
+    <title>해윤이의 영어 숙제 도우미</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="sky" aria-hidden="true"></div>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mascot" aria-hidden="true">🦉</span>
+          <div>
+            <p class="eyebrow">초등 영어 숙제</p>
+            <h1>해윤이의 영어 숙제 도우미</h1>
+          </div>
+        </div>
+        <button type="button" class="gear-btn" id="settingsBtn" aria-label="부모님 설정">
+          ⚙️
+        </button>
+      </header>
+
+      <!-- 부모님: API 키 -->
+      <section id="setupScreen" class="screen hidden">
+        <div class="card">
+          <p class="card-kicker">부모님께 부탁해요</p>
+          <h2>처음 한 번만 설정하면 돼요</h2>
+          <p class="easy-text">
+            사진을 읽고 힌트를 만들려면 Google Gemini 키가 필요해요.
+            키는 이 핸드폰에만 저장됩니다.
+          </p>
+          <label class="field-label" for="apiKeyInput">Gemini API 키</label>
+          <input
+            id="apiKeyInput"
+            type="password"
+            autocomplete="off"
+            placeholder="AIza로 시작하는 키"
+          />
+          <a
+            class="help-link"
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            >키 만들러 가기 (무료)</a
+          >
+          <button type="button" class="btn btn-primary" id="saveKeyBtn">저장하고 시작</button>
+          <button type="button" class="btn btn-ghost hidden" id="setupBackBtn">돌아가기</button>
+        </div>
+      </section>
+
+      <!-- 1. 학습지 사진 -->
+      <section id="homeScreen" class="screen hidden">
+        <div class="hero-card card">
+          <p class="hello">안녕, 해윤이! 👋</p>
+          <h2>오늘 영어 숙제를 같이 해보자</h2>
+          <p class="easy-text">학습지를 카메라로 찍으면, 단어 뜻과 힌트를 알려 줄게.</p>
+          <ol class="steps">
+            <li class="on">학습지 사진</li>
+            <li>참고자료</li>
+            <li>한 문제씩</li>
+          </ol>
+        </div>
+        <button type="button" class="btn btn-camera" id="homeworkBtn">
+          <span class="btn-icon" aria-hidden="true">📷</span>
+          학습지 사진 찍기
+        </button>
+        <p class="tiny-help">글자가 잘 보이게, 밝게 찍어 주세요.</p>
+      </section>
+
+      <!-- 2. 참고자료 -->
+      <section id="refScreen" class="screen hidden">
+        <div class="card">
+          <ol class="steps">
+            <li class="done">학습지 사진</li>
+            <li class="on">참고자료</li>
+            <li>한 문제씩</li>
+          </ol>
+          <div class="thumb-wrap" id="homeworkThumbWrap"></div>
+          <h2>참고자료 올리기</h2>
+          <p class="easy-text">
+            교과서, 단어장, 수업 메모처럼 도움이 되는 사진이 있으면 찍어 주세요.
+            없으면 ‘자료없음’을 눌러도 돼요.
+          </p>
+        </div>
+        <div class="btn-stack">
+          <button type="button" class="btn btn-camera" id="refPhotoBtn">
+            <span class="btn-icon" aria-hidden="true">📷</span>
+            사진 찍기
+          </button>
+          <button type="button" class="btn btn-ghost" id="refSkipBtn">자료없음</button>
+        </div>
+      </section>
+
+      <!-- 분석 중 -->
+      <section id="loadingScreen" class="screen hidden">
+        <div class="card loading-card">
+          <div class="bounce" aria-hidden="true">
+            <span>📘</span><span>✏️</span><span>⭐</span>
+          </div>
+          <h2 id="loadingTitle">학습지를 읽고 있어요</h2>
+          <p class="easy-text" id="loadingText">문제를 찾고 단어를 고르고 있어요. 조금만 기다려 주세요.</p>
+        </div>
+      </section>
+
+      <!-- 3. 문제 풀이 도움 -->
+      <section id="studyScreen" class="screen hidden">
+        <div class="progress-row">
+          <p id="progressLabel">문제 1 / 1</p>
+          <div class="progress-bar" aria-hidden="true">
+            <span id="progressFill"></span>
+          </div>
+        </div>
+
+        <div class="card problem-card">
+          <p class="problem-no" id="problemNo">1번</p>
+          <h2 id="problemWhat">이 문제를 풀어 보세요</h2>
+          <p class="problem-bits" id="problemBits"></p>
+        </div>
+
+        <div class="card">
+          <h3 class="section-h">이 문제에 나온 영어 단어</h3>
+          <p class="tiny-help left">뜻은 한두 개만 알려 줄게요. 정답은 해윤이가 생각해요.</p>
+          <ul id="wordList" class="word-list"></ul>
+        </div>
+
+        <div id="hintBox" class="hint-stack"></div>
+
+        <div class="bottom-actions" id="studyActions"></div>
+      </section>
+
+      <!-- 완료 -->
+      <section id="doneScreen" class="screen hidden">
+        <div class="card done-card">
+          <p class="stars" aria-hidden="true">⭐ ⭐ ⭐</p>
+          <h2>해윤이, 정말 잘했어!</h2>
+          <p class="easy-text">힌트만 보고 스스로 풀어 본 거야. 내일 숙제도 같이 하자.</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="restartBtn">처음부터 다시</button>
+      </section>
+
+      <section id="errorScreen" class="screen hidden">
+        <div class="card">
+          <h2>사진을 다시 찍어 볼까요?</h2>
+          <p class="easy-text" id="errorText">글자를 잘 못 읽었어요. 학습지를 가까이, 밝게 찍어 주세요.</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="retryBtn">다시 찍기</button>
+      </section>
+    </div>
+
+    <input id="cameraInput" class="sr-only" type="file" accept="image/*" capture="environment" />
+
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
