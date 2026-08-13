@@ -17,7 +17,7 @@
       href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=20260813c" />
   </head>
   <body>
     <div class="sky" aria-hidden="true"></div>
@@ -68,7 +68,7 @@
         <div class="hero-card card">
           <p class="hello">안녕, 해윤이! 👋</p>
           <h2>오늘 영어 숙제를 같이 해보자</h2>
-          <p class="easy-text">학습지를 카메라로 찍으면, 단어 뜻과 힌트를 알려 줄게.</p>
+          <p class="easy-text">학습지를 찍으면 인쇄된 글만 읽고, 단어 뜻과 힌트를 알려 줄게. 손으로 쓴 글은 읽지 않아요.</p>
           <ol class="steps">
             <li class="on">학습지 사진</li>
             <li>참고자료</li>
@@ -79,7 +79,8 @@
           <span class="btn-icon" aria-hidden="true">📷</span>
           학습지 사진 찍기
         </button>
-        <p class="tiny-help">글자가 잘 보이게, 밝게 찍어 주세요.</p>
+        <button type="button" class="btn btn-ghost" id="homeworkAlbumBtn">사진첩에서 고르기</button>
+        <p class="tiny-help">인쇄된 글이 잘 보이게 학습지 전체를 찍어 주세요.</p>
       </section>
 
       <!-- 2. 참고자료 -->
@@ -93,7 +94,7 @@
           <div class="thumb-wrap" id="homeworkThumbWrap"></div>
           <h2>참고자료 올리기</h2>
           <p class="easy-text">
-            교과서, 단어장, 수업 메모처럼 도움이 되는 사진이 있으면 찍어 주세요.
+            교과서나 단어장처럼 인쇄된 참고자료가 있으면 찍어 주세요.
             없으면 ‘자료없음’을 눌러도 돼요.
           </p>
         </div>
@@ -102,6 +103,7 @@
             <span class="btn-icon" aria-hidden="true">📷</span>
             사진 찍기
           </button>
+          <button type="button" class="btn btn-ghost" id="refAlbumBtn">사진첩에서 고르기</button>
           <button type="button" class="btn btn-ghost" id="refSkipBtn">자료없음</button>
         </div>
       </section>
@@ -156,16 +158,17 @@
       <section id="errorScreen" class="screen hidden">
         <div class="card">
           <h2>사진을 다시 찍어 볼까요?</h2>
-          <p class="easy-text" id="errorText">글자를 잘 못 읽었어요. 학습지를 가까이, 밝게 찍어 주세요.</p>
+          <p class="easy-text" id="errorText">인쇄된 글자를 아직 못 읽었어요. 학습지 전체가 나오게 다시 찍어 주세요.</p>
         </div>
         <button type="button" class="btn btn-primary" id="retryBtn">다시 찍기</button>
       </section>
     </div>
 
     <input id="cameraInput" class="sr-only" type="file" accept="image/*" capture="environment" />
+    <input id="albumInput" class="sr-only" type="file" accept="image/*" />
 
     <div id="toast" class="toast" role="status"></div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260813c"></script>
   </body>
 </html>
