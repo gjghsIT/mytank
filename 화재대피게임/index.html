@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#ff8a6a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="기숙사 대피" />
+    <title>불이야! 기숙사 대피</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="phone">
+      <section id="titleScreen" class="screen">
+        <div class="sparkles" aria-hidden="true"></div>
+        <p class="eyebrow">기숙사 화재대피 훈련</p>
+        <h1>불이야!<br />기숙사 대피</h1>
+        <div class="hero" aria-hidden="true">
+          <div class="hero-fire">🔥</div>
+          <div class="chibi">
+            <div class="pigtail left"></div>
+            <div class="pigtail right"></div>
+            <div class="head">
+              <div class="bangs"></div>
+              <div class="eye l"></div>
+              <div class="eye r"></div>
+              <div class="blush l"></div>
+              <div class="blush r"></div>
+              <div class="mouth"></div>
+            </div>
+            <div class="body">
+              <div class="hoodie"></div>
+            </div>
+          </div>
+          <div class="hero-door">🚪</div>
+        </div>
+        <p class="lead">
+          연기를 숙여 지나고, 문 온도를 확인한 뒤<br />
+          <strong>안전한 계단 문</strong>으로 탈출하세요
+        </p>
+        <button type="button" class="btn btn-main" id="startBtn">대피 시작</button>
+        <button type="button" class="btn btn-ghost" id="rulesBtn">대피 수칙 보기</button>
+      </section>
+
+      <section id="rulesScreen" class="screen hidden">
+        <h2>꼭 지켜야 할 수칙</h2>
+        <ul class="rules-list">
+          <li><span>1</span>연기구간에서는 몸을 숙여 이동해요</li>
+          <li><span>2</span>나가는 문은 여러 개! 열기 전 온도를 확인해요</li>
+          <li><span>3</span>뜨거운 문은 피하고, 계단 문으로 나가요</li>
+          <li><span>4</span>엘리베이터는 절대 타지 않아요</li>
+          <li><span>5</span>태블릿·가방·핸드폰은 두고, 복도의 돈도 줍지 마세요</li>
+          <li><span>6</span>화재경보기를 눌러 친구들에게 알려요</li>
+          <li><span>7</span>젖은 수건으로 코와 입을 가려요</li>
+          <li><span>8</span>친구들을 구해 함께 대피해요</li>
+        </ul>
+        <p class="rules-note">물건을 챙기거나 엘리베이터를 타면 감점돼요. 수칙을 지킬수록 점수가 올라가요.</p>
+        <button type="button" class="btn btn-main" id="rulesStartBtn">알겠어요, 출발!</button>
+        <button type="button" class="btn btn-ghost" id="rulesBackBtn">뒤로</button>
+      </section>
+
+      <section id="gameScreen" class="screen game-screen hidden">
+        <header class="hud">
+          <div class="hud-chip time">⏱ <strong id="timeLabel">00:00</strong></div>
+          <div class="hud-chip score">⭐ <strong id="scoreLabel">0</strong></div>
+          <div class="hud-chip friends">👭 <strong id="friendLabel">0/3</strong></div>
+          <button type="button" class="pause-btn" id="pauseBtn" aria-label="일시정지">⏸</button>
+        </header>
+        <div class="hp-wrap">
+          <span>체력</span>
+          <div class="hp-bar"><i id="hpFill"></i></div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="game"></canvas>
+          <div id="toast" class="toast hidden"></div>
+          <div id="alarmBanner" class="alarm-banner hidden">🚨 화재 경보! 문 온도를 확인하고 대피하세요</div>
+        </div>
+        <p class="hint" id="hintText">연기구간에서 숙이고, 출구 문 온도를 확인하세요</p>
+        <div class="item-row">
+          <button type="button" class="item-btn" id="btnAlarm">🚨 경보기</button>
+          <button type="button" class="item-btn warn" id="btnTablet">태블릿</button>
+          <button type="button" class="item-btn warn" id="btnBag">가방</button>
+          <button type="button" class="item-btn warn" id="btnPhone">핸드폰</button>
+          <button type="button" class="item-btn warn" id="btnMoney">돈</button>
+        </div>
+        <div class="controls">
+          <div class="dpad" id="dpad">
+            <button type="button" data-dir="up" aria-label="위">▲</button>
+            <div class="dpad-mid">
+              <button type="button" data-dir="left" aria-label="왼쪽">◀</button>
+              <button type="button" data-dir="right" aria-label="오른쪽">▶</button>
+            </div>
+            <button type="button" data-dir="down" aria-label="아래">▼</button>
+          </div>
+          <div class="actions">
+            <button type="button" class="act-btn crouch" id="crouchBtn">숙이기</button>
+            <button type="button" class="act-btn action" id="actionBtn">행동</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="pauseScreen" class="screen overlay hidden">
+        <div class="card">
+          <h2>잠시 멈춤</h2>
+          <p>화재는 기다려 주지 않아요. 바로 대피를 이어 가세요.</p>
+          <button type="button" class="btn btn-main" id="resumeBtn">계속하기</button>
+          <button type="button" class="btn btn-ghost" id="quitBtn">처음 화면</button>
+        </div>
+      </section>
+
+      <section id="resultScreen" class="screen overlay hidden">
+        <div class="card result-card">
+          <p class="result-kicker" id="resultKicker">탈출 성공</p>
+          <p class="alive" id="aliveText">살았다</p>
+          <p class="result-score">⭐ <strong id="resultScore">0</strong>점</p>
+          <div class="stars" id="resultStars">★★★</div>
+          <ul class="breakdown" id="breakdown"></ul>
+          <button type="button" class="btn btn-main" id="retryBtn">다시 대피하기</button>
+          <button type="button" class="btn btn-ghost" id="homeBtn">처음 화면</button>
+        </div>
+      </section>
+    </div>
+    <script src="game.js"></script>
+  </body>
+</html>
