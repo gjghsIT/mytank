@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#3d6b5a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="안전교육 퀴즈" />
+    <title>기숙사 안전교육 퀴즈</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="phone">
+      <section id="titleScreen" class="screen">
+        <p class="eyebrow">1학기 기숙사생 교육</p>
+        <h1>폭력·도박·성폭력<br />예방 퀴즈</h1>
+        <p class="lead">
+          한 문제당 <strong>5초</strong> 안에 고르세요<br />
+          시간이 끝나면 정답과 해설을 보여 줘요
+        </p>
+        <div class="topic-row">
+          <span>도박</span>
+          <span>학교폭력</span>
+          <span>디지털 성폭력</span>
+        </div>
+        <button type="button" class="btn btn-main" id="startBtn">퀴즈 시작</button>
+        <button type="button" class="btn btn-ghost" id="helpBtn">도움 전화 보기</button>
+        <p class="tiny">총 18문제 · 한 문제 5초 · 객관식</p>
+      </section>
+
+      <section id="helpScreen" class="screen hidden">
+        <h2>도움이 필요할 때</h2>
+        <ul class="help-list">
+          <li>
+            <span>117</span>
+            <p>학교폭력 · 디지털 성폭력 신고</p>
+          </li>
+          <li>
+            <span>1388</span>
+            <p>청소년 상담</p>
+          </li>
+          <li>
+            <span>02-735-8994</span>
+            <p>디지털 성범죄 피해자 지원센터</p>
+          </li>
+        </ul>
+        <p class="help-note">피해는 본인의 잘못이 아닙니다. 혼자 견디지 말고 바로 알려 주세요.</p>
+        <button type="button" class="btn btn-main" id="helpStartBtn">퀴즈 시작</button>
+        <button type="button" class="btn btn-ghost" id="helpBackBtn">뒤로</button>
+      </section>
+
+      <section id="quizScreen" class="screen quiz-screen hidden">
+        <header class="quiz-top">
+          <div class="progress-meta">
+            <span id="catLabel" class="cat">도박</span>
+            <span id="timerNum" class="timer-num">5</span>
+            <span id="countLabel">1 / 18</span>
+          </div>
+          <div class="timer-bar" id="timerBar"><i id="timerFill"></i></div>
+          <div class="progress"><i id="progressFill"></i></div>
+        </header>
+        <h2 id="questionText"></h2>
+        <div id="choices" class="choices"></div>
+        <div id="feedback" class="feedback hidden">
+          <p id="feedbackTitle"></p>
+          <p id="feedbackBody"></p>
+        </div>
+        <button type="button" class="btn btn-main hidden" id="nextBtn">다음 문제</button>
+      </section>
+
+      <section id="resultScreen" class="screen overlay hidden">
+        <div class="card result-card">
+          <p class="result-kicker" id="resultKicker">퀴즈 완료</p>
+          <p class="result-score"><strong id="scoreLabel">0</strong><span>/18</span></p>
+          <p class="result-msg" id="resultMsg"></p>
+          <ul class="hotline">
+            <li><b>117</b> 학교폭력·디지털 성폭력 신고</li>
+            <li><b>1388</b> 청소년 상담</li>
+            <li><b>02-735-8994</b> 디지털 성범죄 피해자 지원</li>
+          </ul>
+          <button type="button" class="btn btn-main" id="retryBtn">다시 풀기</button>
+          <button type="button" class="btn btn-ghost" id="homeBtn">처음 화면</button>
+        </div>
+      </section>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
