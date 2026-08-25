@@ -19,19 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inject manitto write token
-        env:
-          MANITTO_TOKEN: ${{ secrets.MANITTO_TOKEN }}
-        run: |
-          python3 - <<'PY'
-          import os, pathlib
-          token = os.environ.get("MANITTO_TOKEN", "").replace("\\", "\\\\").replace("'", "\\'")
-          text = "window.MANITTO_TOKEN = '%s';\n" % token
-          pathlib.Path("dorm-manitto/store-config.js").write_text(text, encoding="utf-8")
-          korean = pathlib.Path("기숙사마니또/store-config.js")
-          if korean.exists():
-              korean.write_text(text, encoding="utf-8")
-          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

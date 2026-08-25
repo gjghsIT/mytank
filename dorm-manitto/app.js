@@ -1,7 +1,6 @@
 (() => {
-  const REPO = "gjghsIT/mytank";
-  const STATE_PATH = "dorm-manitto/state.json";
-  const TOKEN = String(window.MANITTO_TOKEN || "").trim();
+  const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
+  const STORE_WRITE = String(window.MANITTO_STORE_WRITE || "").trim();
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -94,78 +93,66 @@
     };
   }
 
-  function decodeB64(value) {
-    const binary = atob(String(value || "").replace(/\n/g, ""));
-    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  }
-
-  function encodeB64(value) {
-    const bytes = new TextEncoder().encode(value);
-    let binary = "";
-    bytes.forEach((byte) => {
-      binary += String.fromCharCode(byte);
-    });
-    return btoa(binary);
-  }
-
-  function authHeaders(extra) {
-    const headers = Object.assign({ Accept: "application/vnd.github+json" }, extra || {});
-    if (TOKEN) headers.Authorization = "Bearer " + TOKEN;
-    return headers;
-  }
-
   async function getState() {
-    const res = await fetch(
-      `https://api.github.com/repos/${REPO}/contents/${STATE_PATH}?t=${Date.now()}`,
-      { headers: authHeaders(), cache: "no-store" }
-    );
+    if (!STORE_URL) throw new Error("load");
+    const res = await fetch(`${STORE_URL}?t=${Date.now()}`, { cache: "no-store" });
+    if (res.status === 404) return { version: 0, lock: null, matches: [] };
     if (!res.ok) throw new Error("load");
-    const meta = await res.json();
-    const data = normalize(JSON.parse(decodeB64(meta.content)));
-    data.sha = meta.sha;
-    return data;
+    const text = (await res.text()).trim();
+    if (!text) return { version: 0, lock: null, matches: [] };
+    try {
+      return normalize(JSON.parse(text));
+    } catch {
+      return { version: 0, lock: null, matches: [] };
+    }
   }
 
   async function putState(state) {
-    const sha = state.sha;
-    const payload = {
+    if (!STORE_URL) throw new Error("save");
+    const payload = JSON.stringify({
       version: state.version || 0,
       lock: null,
       matches: state.matches || [],
-    };
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_PATH}`, {
-      method: "PUT",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        message: "Update manitto matches.",
-        content: encodeB64(JSON.stringify(payload)),
-        sha,
-      }),
     });
-    if (res.status === 409 || res.status === 422) throw new Error("conflict");
+    const headers = { Accept: "application/json" };
+    if (STORE_WRITE) headers.Authorization = "Bearer " + STORE_WRITE;
+    const res = await fetch(STORE_URL, {
+      method: "PUT",
+      headers,
+      body: payload,
+    });
     if (!res.ok) throw new Error("save");
+  }
+
+  function hasPair(matches, pair) {
+    return (matches || []).some((m) => m.fromId === pair.fromId && m.toId === pair.toId);
   }
 
   async function updateState(mutator) {
     for (let i = 0; i < 18; i += 1) {
       const state = await getState();
       const result = mutator(state.matches.slice());
-      try {
-        await putState({
-          version: (state.version || 0) + 1,
-          matches: result.matches,
-          sha: state.sha,
-        });
-        cachedMatches = result.matches;
+      if (result.status === "mine" || result.status === "taken" || result.status === "empty") {
+        cachedMatches = state.matches;
         return result;
-      } catch (error) {
-        if (error.message === "conflict") {
-          await sleep(150 + Math.random() * 300);
-          continue;
-        }
-        throw error;
       }
+      const next = {
+        version: (state.version || 0) + 1,
+        matches: result.matches,
+      };
+      await putState(next);
+      const verify = await getState();
+      const added = result.status === "ok" ? result.matches[result.matches.length - 1] : null;
+      const saved =
+        result.status === "reset"
+          ? verify.matches.length === 0
+          : added && hasPair(verify.matches, added);
+      if (saved) {
+        cachedMatches = verify.matches;
+        result.matches = verify.matches;
+        return result;
+      }
+      await sleep(150 + Math.random() * 400);
     }
     throw new Error("busy");
   }
@@ -389,7 +376,9 @@
   }
 
   refreshFromStore();
-  setInterval(refreshFromStore, 45000);
+  setInterval(() => {
+    if (document.visibilityState === "visible") refreshFromStore();
+  }, 8000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") refreshFromStore();
   });
