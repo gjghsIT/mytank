@@ -1,0 +1,243 @@
+:root {
+  --cream: #f7f1e6;
+  --ink: #2f2a24;
+  --muted: #6f6458;
+  --sage: #3d6b5a;
+  --sage-deep: #2b5244;
+  --coral: #c45c4a;
+  --card: #fffdf8;
+  --shadow: 0 12px 28px rgba(43, 82, 68, 0.14);
+  --font-display: "Jua", "Noto Sans KR", sans-serif;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 0%, #e8d7b5 0 140px, transparent 141px),
+    radial-gradient(circle at 100% 6%, #c9ddc8 0 120px, transparent 121px),
+    linear-gradient(180deg, #2f5748 0 200px, var(--cream) 200px 100%);
+}
+
+.bg-deco {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+}
+
+.app {
+  width: min(520px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 36px 0 64px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  color: #fff8ee;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #e8f3ec;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 8vw, 44px);
+  font-weight: 400;
+  margin: 0 0 10px;
+}
+
+h1 span {
+  color: #f0d7a4;
+}
+
+.lead {
+  margin: 0 auto;
+  max-width: 420px;
+  line-height: 1.65;
+  color: rgba(255, 248, 238, 0.88);
+  font-size: 15px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 24px;
+  padding: 22px 22px 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  background: #f6faf7;
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.stat b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--sage-deep);
+}
+
+.stat span {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field-label {
+  display: block;
+  margin: 0 0 8px;
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.grade-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.grade-btn {
+  height: 56px;
+  border: 2px solid #d5e4db;
+  border-radius: 16px;
+  background: #fff;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--sage-deep);
+  cursor: pointer;
+}
+
+.grade-btn.selected {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff8ee;
+}
+
+select {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #d7cbb8;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.error {
+  margin: 0 0 12px;
+  color: var(--coral);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.btn {
+  border: 0;
+  border-radius: 14px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  padding: 14px 20px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-main {
+  background: var(--sage);
+  color: #fff8ee;
+}
+
+.btn-main:hover:not(:disabled) {
+  background: var(--sage-deep);
+}
+
+.result-card {
+  text-align: center;
+  padding: 28px 22px;
+}
+
+.result-kicker {
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: var(--sage);
+  font-size: 0.9rem;
+}
+
+.result-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 8vw, 2.6rem);
+  color: var(--sage-deep);
+}
+
+.result-id {
+  margin: 6px 0 14px;
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.result-note {
+  margin: 0 0 18px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.result-card.blocked .result-name {
+  font-size: 1.35rem;
+  color: var(--coral);
+}
+
+.reset-wrap {
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+.reset-btn {
+  border: 0;
+  background: transparent;
+  color: #8a7d70;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}

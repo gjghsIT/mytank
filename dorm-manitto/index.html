@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>기숙사 마니또</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-deco" aria-hidden="true"></div>
+    <div class="app">
+      <header class="hero">
+        <p class="eyebrow">1학년 ↔ 2학년</p>
+        <h1>기숙사 <span>마니또</span></h1>
+        <p class="lead">
+          학년과 내 이름을 고른 뒤 버튼을 누르면, 아직 정해지지 않은 다른 학년 친구 한 명을 뽑습니다.
+        </p>
+      </header>
+
+      <section class="card" id="formCard">
+        <div class="stats" id="stats"></div>
+
+        <div class="field">
+          <p class="field-label">나는</p>
+          <div class="grade-row" role="group" aria-label="학년 선택">
+            <button type="button" class="grade-btn" data-grade="1" id="grade1Btn">1학년</button>
+            <button type="button" class="grade-btn" data-grade="2" id="grade2Btn">2학년</button>
+          </div>
+        </div>
+
+        <div class="field hidden" id="nameField">
+          <label class="field-label" for="nameSelect">내 이름 (학번)</label>
+          <select id="nameSelect">
+            <option value="">이름을 선택하세요</option>
+          </select>
+        </div>
+
+        <p class="error" id="formError" hidden></p>
+        <button type="button" class="btn btn-main" id="drawBtn" disabled>내 마니또 대상은?</button>
+      </section>
+
+      <section class="card result-card hidden" id="resultCard">
+        <p class="result-kicker" id="resultKicker">나의 마니또 대상</p>
+        <p class="result-name" id="resultName"></p>
+        <p class="result-id" id="resultId"></p>
+        <p class="result-note" id="resultNote"></p>
+        <button type="button" class="btn btn-main" id="nextBtn">화면 가리고 다음 친구</button>
+      </section>
+
+      <p class="reset-wrap hidden" id="resetWrap">
+        <button type="button" class="reset-btn" id="resetBtn">모든 추첨 초기화</button>
+      </p>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
