@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_KEY = "dorm-manitto-2026";
+  const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -76,19 +76,68 @@
   };
 
   let selectedGrade = 0;
+  let cachedMatches = [];
+  let drawing = false;
 
-  function loadMatches() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function saveMatches(matches) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+  function normalize(data) {
+    const matches = Array.isArray(data?.matches) ? data.matches : [];
+    return {
+      version: Number(data?.version) || 0,
+      lock: data?.lock || null,
+      matches,
+    };
+  }
+
+  async function getState() {
+    if (!STORE_URL) throw new Error("nostore");
+    const res = await fetch(STORE_URL + (STORE_URL.includes("?") ? "&" : "?") + "t=" + Date.now(), {
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("load");
+    return normalize(await res.json());
+  }
+
+  async function putState(state) {
+    const res = await fetch(STORE_URL, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(state),
+    });
+    if (!res.ok) throw new Error("save");
+  }
+
+  async function updateState(mutator) {
+    const lockId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    for (let i = 0; i < 18; i += 1) {
+      const state = await getState();
+      if (state.lock && state.lock.id !== lockId && Date.now() - Number(state.lock.at || 0) < 4500) {
+        await sleep(120 + Math.random() * 280);
+        continue;
+      }
+      state.lock = { id: lockId, at: Date.now() };
+      await putState(state);
+      await sleep(80);
+      const mine = await getState();
+      if (!mine.lock || mine.lock.id !== lockId) {
+        await sleep(120 + Math.random() * 280);
+        continue;
+      }
+      const result = mutator(mine.matches.slice());
+      mine.matches = result.matches;
+      mine.version = (mine.version || 0) + 1;
+      mine.lock = null;
+      await putState(mine);
+      cachedMatches = mine.matches;
+      return result;
+    }
+    throw new Error("busy");
   }
 
   function usedIds(matches) {
@@ -114,29 +163,30 @@
     els.formError.textContent = message || "";
   }
 
-  function renderStats() {
-    const matches = loadMatches();
-    const left1 = remainingOf(1, matches).length;
-    const left2 = remainingOf(2, matches).length;
+  function renderStats(matches) {
+    const list = matches || cachedMatches;
+    const left1 = remainingOf(1, list).length;
+    const left2 = remainingOf(2, list).length;
     els.stats.innerHTML = `
       <div class="stat"><b>${left1}</b><span>남은 1학년</span></div>
       <div class="stat"><b>${left2}</b><span>남은 2학년</span></div>
     `;
   }
 
-  function fillNames() {
-    const matches = loadMatches();
-    const used = usedIds(matches);
-    const list = selectedGrade === 1 ? grade1 : grade2;
+  function fillNames(matches) {
+    const list = matches || cachedMatches;
+    const used = usedIds(list);
+    const people = selectedGrade === 1 ? grade1 : grade2;
+    const previous = els.nameSelect.value;
     els.nameSelect.innerHTML = "";
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "이름을 선택하세요";
     els.nameSelect.append(placeholder);
-    list.forEach((student) => {
+    people.forEach((student) => {
       const option = document.createElement("option");
       option.value = student.id;
-      const iDrew = matches.some((m) => m.fromId === student.id);
+      const iDrew = list.some((m) => m.fromId === student.id);
       const taken = used.has(student.id);
       option.textContent = taken
         ? `${student.name} (${student.id}) · 참여 완료`
@@ -144,8 +194,29 @@
       option.disabled = taken && !iDrew;
       els.nameSelect.append(option);
     });
-    els.nameSelect.value = "";
-    els.drawBtn.disabled = true;
+    if (previous && [...els.nameSelect.options].some((o) => o.value === previous && !o.disabled)) {
+      els.nameSelect.value = previous;
+    } else {
+      els.nameSelect.value = "";
+    }
+    els.drawBtn.disabled = drawing || !els.nameSelect.value;
+  }
+
+  async function refreshFromStore() {
+    if (!STORE_URL) {
+      showError("공통 명단을 준비하는 중입니다. 잠시 후 새로고침해 주세요.");
+      renderStats([]);
+      return;
+    }
+    try {
+      const state = await getState();
+      cachedMatches = state.matches;
+      renderStats(cachedMatches);
+      if (selectedGrade) fillNames(cachedMatches);
+      if (!drawing) showError("");
+    } catch {
+      showError("공통 명단에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.");
+    }
   }
 
   function selectGrade(grade) {
@@ -155,7 +226,7 @@
     els.nameField.classList.remove("hidden");
     els.resultCard.classList.add("hidden");
     showError("");
-    fillNames();
+    fillNames(cachedMatches);
   }
 
   function currentStudent() {
@@ -172,66 +243,86 @@
     els.resultCard.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  function draw() {
+  async function draw() {
     const me = currentStudent();
-    if (!me) {
-      showError("내 이름을 먼저 선택해 주세요.");
+    if (!me || drawing) {
+      if (!me) showError("내 이름을 먼저 선택해 주세요.");
       return;
     }
 
-    const matches = loadMatches();
-    const used = usedIds(matches);
-    const mine = matches.find((m) => m.fromId === me.id);
+    drawing = true;
+    els.drawBtn.disabled = true;
+    els.drawBtn.textContent = "뽑는 중...";
+    showError("");
 
-    if (mine) {
-      const target = byId[mine.toId];
+    try {
+      const result = await updateState((matches) => {
+        const used = usedIds(matches);
+        const mine = matches.find((m) => m.fromId === me.id);
+        if (mine) return { matches, status: "mine", toId: mine.toId };
+        if (used.has(me.id)) return { matches, status: "taken" };
+        const pool = remainingOf(me.grade === 1 ? 2 : 1, matches);
+        if (!pool.length) return { matches, status: "empty" };
+        const target = pickRandom(pool);
+        return {
+          matches: matches.concat({ fromId: me.id, toId: target.id }),
+          status: "ok",
+          toId: target.id,
+        };
+      });
+
+      renderStats(cachedMatches);
+      fillNames(cachedMatches);
+      els.nameSelect.value = me.id;
       els.drawBtn.disabled = true;
+
+      if (result.status === "mine") {
+        const target = byId[result.toId];
+        showResult({
+          kicker: "이미 참여했습니다",
+          name: target.name,
+          id: `${target.id} · ${target.grade}학년`,
+          note: "이미 정해진 마니또 대상입니다. 다시 뽑을 수 없습니다.",
+        });
+        return;
+      }
+      if (result.status === "taken") {
+        showResult({
+          kicker: "참여할 수 없습니다",
+          name: "이미 다른 친구의 마니또 대상입니다",
+          id: "",
+          note: "마니또와 마니또 대상은 한 번만 매칭됩니다.",
+          blocked: true,
+        });
+        return;
+      }
+      if (result.status === "empty") {
+        showError(
+          me.grade === 1
+            ? "남은 2학년이 없습니다. 이미 모두 매칭되었습니다."
+            : "남은 1학년이 없습니다. 이미 모두 매칭되었습니다."
+        );
+        return;
+      }
+      const target = byId[result.toId];
       showResult({
-        kicker: "이미 참여했습니다",
+        kicker: "나의 마니또 대상",
         name: target.name,
         id: `${target.id} · ${target.grade}학년`,
-        note: "이미 정해진 마니또 대상입니다. 다시 뽑을 수 없습니다.",
+        note: "이 화면을 닫은 뒤 다음 친구가 뽑으면 됩니다.",
       });
-      return;
-    }
-
-    if (used.has(me.id)) {
-      els.drawBtn.disabled = true;
-      showResult({
-        kicker: "참여할 수 없습니다",
-        name: "이미 다른 친구의 마니또 대상입니다",
-        id: "",
-        note: "마니또와 마니또 대상은 한 번만 매칭됩니다.",
-        blocked: true,
-      });
-      return;
-    }
-
-    const otherGrade = me.grade === 1 ? 2 : 1;
-    const pool = remainingOf(otherGrade, matches);
-    if (!pool.length) {
+    } catch (error) {
       showError(
-        me.grade === 1
-          ? "남은 2학년이 없습니다. 이미 모두 매칭되었습니다."
-          : "남은 1학년이 없습니다. 이미 모두 매칭되었습니다."
+        error.message === "busy"
+          ? "다른 친구가 뽑고 있습니다. 잠시 후 다시 눌러 주세요."
+          : "공통 명단에 저장하지 못했습니다. 다시 시도해 주세요."
       );
-      return;
+    } finally {
+      drawing = false;
+      els.drawBtn.textContent = "내 마니또 대상은?";
+      els.drawBtn.disabled =
+        !els.nameSelect.value || cachedMatches.some((m) => m.fromId === els.nameSelect.value);
     }
-
-    const target = pickRandom(pool);
-    matches.push({ fromId: me.id, toId: target.id });
-    saveMatches(matches);
-    renderStats();
-    fillNames();
-    els.nameSelect.value = me.id;
-    els.drawBtn.disabled = true;
-    showError("");
-    showResult({
-      kicker: "나의 마니또 대상",
-      name: target.name,
-      id: `${target.id} · ${target.grade}학년`,
-      note: "이 화면을 닫은 뒤 다음 친구가 뽑으면 됩니다.",
-    });
   }
 
   function nextPerson() {
@@ -243,7 +334,7 @@
     els.drawBtn.disabled = true;
     els.resultCard.classList.add("hidden");
     showError("");
-    renderStats();
+    renderStats(cachedMatches);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -252,19 +343,26 @@
   els.nameSelect.addEventListener("change", () => {
     showError("");
     els.resultCard.classList.add("hidden");
-    els.drawBtn.disabled = !els.nameSelect.value;
+    els.drawBtn.disabled = drawing || !els.nameSelect.value;
   });
-  els.drawBtn.addEventListener("click", draw);
+  els.drawBtn.addEventListener("click", () => {
+    draw();
+  });
   els.nextBtn.addEventListener("click", nextPerson);
-  els.resetBtn.addEventListener("click", () => {
+  els.resetBtn.addEventListener("click", async () => {
     if (!confirm("지금까지의 마니또 추첨을 모두 지울까요?")) return;
-    saveMatches([]);
-    nextPerson();
+    try {
+      await updateState(() => ({ matches: [], status: "reset" }));
+      nextPerson();
+    } catch {
+      showError("초기화에 실패했습니다. 다시 시도해 주세요.");
+    }
   });
 
   if (new URLSearchParams(location.search).has("admin")) {
     els.resetWrap.classList.remove("hidden");
   }
 
-  renderStats();
+  refreshFromStore();
+  setInterval(refreshFromStore, 4000);
 })();
