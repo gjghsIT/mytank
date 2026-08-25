@@ -1,5 +1,7 @@
 (() => {
-  const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
+  const REPO = "gjghsIT/mytank";
+  const STATE_PATH = "dorm-manitto/state.json";
+  const TOKEN = String(window.MANITTO_TOKEN || "").trim();
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -92,50 +94,78 @@
     };
   }
 
-  async function getState() {
-    if (!STORE_URL) throw new Error("nostore");
-    const res = await fetch(STORE_URL + (STORE_URL.includes("?") ? "&" : "?") + "t=" + Date.now(), {
-      cache: "no-store",
+  function decodeB64(value) {
+    const binary = atob(String(value || "").replace(/\n/g, ""));
+    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function encodeB64(value) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
     });
+    return btoa(binary);
+  }
+
+  function authHeaders(extra) {
+    const headers = Object.assign({ Accept: "application/vnd.github+json" }, extra || {});
+    if (TOKEN) headers.Authorization = "Bearer " + TOKEN;
+    return headers;
+  }
+
+  async function getState() {
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO}/contents/${STATE_PATH}?t=${Date.now()}`,
+      { headers: authHeaders(), cache: "no-store" }
+    );
     if (!res.ok) throw new Error("load");
-    return normalize(await res.json());
+    const meta = await res.json();
+    const data = normalize(JSON.parse(decodeB64(meta.content)));
+    data.sha = meta.sha;
+    return data;
   }
 
   async function putState(state) {
-    const res = await fetch(STORE_URL, {
+    const sha = state.sha;
+    const payload = {
+      version: state.version || 0,
+      lock: null,
+      matches: state.matches || [],
+    };
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_PATH}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(state),
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        message: "Update manitto matches.",
+        content: encodeB64(JSON.stringify(payload)),
+        sha,
+      }),
     });
+    if (res.status === 409 || res.status === 422) throw new Error("conflict");
     if (!res.ok) throw new Error("save");
   }
 
   async function updateState(mutator) {
-    const lockId = Math.random().toString(36).slice(2) + Date.now().toString(36);
     for (let i = 0; i < 18; i += 1) {
       const state = await getState();
-      if (state.lock && state.lock.id !== lockId && Date.now() - Number(state.lock.at || 0) < 4500) {
-        await sleep(120 + Math.random() * 280);
-        continue;
+      const result = mutator(state.matches.slice());
+      try {
+        await putState({
+          version: (state.version || 0) + 1,
+          matches: result.matches,
+          sha: state.sha,
+        });
+        cachedMatches = result.matches;
+        return result;
+      } catch (error) {
+        if (error.message === "conflict") {
+          await sleep(150 + Math.random() * 300);
+          continue;
+        }
+        throw error;
       }
-      state.lock = { id: lockId, at: Date.now() };
-      await putState(state);
-      await sleep(80);
-      const mine = await getState();
-      if (!mine.lock || mine.lock.id !== lockId) {
-        await sleep(120 + Math.random() * 280);
-        continue;
-      }
-      const result = mutator(mine.matches.slice());
-      mine.matches = result.matches;
-      mine.version = (mine.version || 0) + 1;
-      mine.lock = null;
-      await putState(mine);
-      cachedMatches = mine.matches;
-      return result;
     }
     throw new Error("busy");
   }
@@ -203,11 +233,6 @@
   }
 
   async function refreshFromStore() {
-    if (!STORE_URL) {
-      showError("공통 명단을 준비하는 중입니다. 잠시 후 새로고침해 주세요.");
-      renderStats([]);
-      return;
-    }
     try {
       const state = await getState();
       cachedMatches = state.matches;
@@ -364,5 +389,8 @@
   }
 
   refreshFromStore();
-  setInterval(refreshFromStore, 4000);
+  setInterval(refreshFromStore, 45000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshFromStore();
+  });
 })();
