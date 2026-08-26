@@ -1,6 +1,5 @@
 (() => {
   const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
-  const STORE_WRITE = String(window.MANITTO_STORE_WRITE || "").trim();
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -114,11 +113,8 @@
       lock: null,
       matches: state.matches || [],
     });
-    const headers = { Accept: "application/json" };
-    if (STORE_WRITE) headers.Authorization = "Bearer " + STORE_WRITE;
     const res = await fetch(STORE_URL, {
-      method: "PUT",
-      headers,
+      method: "POST",
       body: payload,
     });
     if (!res.ok) throw new Error("save");
