@@ -1,5 +1,9 @@
 (() => {
-  const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
+  const REPO = "gjghsIT/mytank";
+  const STATE_PATH = "dorm-manitto/state.json";
+  const TOKEN = String(
+    window.MANITTO_TOKEN || new URLSearchParams(location.search).get("token") || ""
+  ).trim();
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -92,36 +96,57 @@
     };
   }
 
+  function decodeB64(value) {
+    const binary = atob(String(value || "").replace(/\n/g, ""));
+    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function encodeB64(value) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary);
+  }
+
+  function authHeaders(extra) {
+    const headers = Object.assign({ Accept: "application/vnd.github+json" }, extra || {});
+    if (TOKEN) headers.Authorization = "Bearer " + TOKEN;
+    return headers;
+  }
+
   async function getState() {
-    if (!STORE_URL) throw new Error("load");
-    const res = await fetch(`${STORE_URL}?t=${Date.now()}`, { cache: "no-store" });
-    if (res.status === 404) return { version: 0, lock: null, matches: [] };
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO}/contents/${STATE_PATH}?t=${Date.now()}`,
+      { headers: authHeaders(), cache: "no-store" }
+    );
     if (!res.ok) throw new Error("load");
-    const text = (await res.text()).trim();
-    if (!text) return { version: 0, lock: null, matches: [] };
-    try {
-      return normalize(JSON.parse(text));
-    } catch {
-      return { version: 0, lock: null, matches: [] };
-    }
+    const meta = await res.json();
+    const data = normalize(JSON.parse(decodeB64(meta.content)));
+    data.sha = meta.sha;
+    return data;
   }
 
   async function putState(state) {
-    if (!STORE_URL) throw new Error("save");
-    const payload = JSON.stringify({
+    if (!TOKEN) throw new Error("save");
+    const payload = {
       version: state.version || 0,
       lock: null,
       matches: state.matches || [],
+    };
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_PATH}`, {
+      method: "PUT",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        message: "Update manitto matches.",
+        content: encodeB64(JSON.stringify(payload)),
+        sha: state.sha,
+      }),
     });
-    const res = await fetch(STORE_URL, {
-      method: "POST",
-      body: payload,
-    });
+    if (res.status === 409 || res.status === 422) throw new Error("conflict");
     if (!res.ok) throw new Error("save");
-  }
-
-  function hasPair(matches, pair) {
-    return (matches || []).some((m) => m.fromId === pair.fromId && m.toId === pair.toId);
   }
 
   async function updateState(mutator) {
@@ -132,23 +157,21 @@
         cachedMatches = state.matches;
         return result;
       }
-      const next = {
-        version: (state.version || 0) + 1,
-        matches: result.matches,
-      };
-      await putState(next);
-      const verify = await getState();
-      const added = result.status === "ok" ? result.matches[result.matches.length - 1] : null;
-      const saved =
-        result.status === "reset"
-          ? verify.matches.length === 0
-          : added && hasPair(verify.matches, added);
-      if (saved) {
-        cachedMatches = verify.matches;
-        result.matches = verify.matches;
+      try {
+        await putState({
+          version: (state.version || 0) + 1,
+          matches: result.matches,
+          sha: state.sha,
+        });
+        cachedMatches = result.matches;
         return result;
+      } catch (error) {
+        if (error.message === "conflict") {
+          await sleep(150 + Math.random() * 400);
+          continue;
+        }
+        throw error;
       }
-      await sleep(150 + Math.random() * 400);
     }
     throw new Error("busy");
   }
@@ -374,7 +397,7 @@
   refreshFromStore();
   setInterval(() => {
     if (document.visibilityState === "visible") refreshFromStore();
-  }, 8000);
+  }, TOKEN ? 12000 : 45000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") refreshFromStore();
   });
