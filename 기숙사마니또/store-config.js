@@ -1,1 +1,1 @@
-window.MANITTO_TOKEN = "";
+window.MANITTO_STORE_URL = "";

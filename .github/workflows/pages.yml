@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -17,25 +17,92 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: github-pages
     steps:
       - uses: actions/checkout@v4
-      - name: Inject manitto write token
+      - uses: actions/cache@v4
+        with:
+          path: .manitto-store-url
+          key: manitto-store-url-v1
+      - name: Ensure shared manitto store
         env:
-          MANITTO_TOKEN: ${{ secrets.MANITTO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PY'
-          import os, pathlib
-          token = os.environ.get("MANITTO_TOKEN", "").replace("\\", "\\\\").replace("'", "\\'")
-          pathlib.Path("dorm-manitto/store-config.js").write_text(
-              "window.MANITTO_TOKEN = '%s';\n" % token, encoding="utf-8"
-          )
-          korean = pathlib.Path("기숙사마니또/store-config.js")
-          if korean.exists():
-              korean.write_text("window.MANITTO_TOKEN = '%s';\n" % token, encoding="utf-8")
-          pathlib.Path("dorm-manitto/store-ready.txt").write_text(
-              "ready" if token else "missing", encoding="utf-8"
-          )
+          import json, os, pathlib, re, subprocess, urllib.error, urllib.request
+
+          def config_text(url):
+              return 'window.MANITTO_STORE_URL = "%s";\n' % url.replace("\\", "\\\\").replace('"', '\\"')
+
+          def current_url(path):
+              text = path.read_text(encoding="utf-8") if path.exists() else ""
+              match = re.search(r'https://[^"\']+', text)
+              return match.group(0) if match else ""
+
+          def http(url, data=None, method="GET"):
+              body = None if data is None else (data if isinstance(data, bytes) else json.dumps(data).encode())
+              req = urllib.request.Request(url, data=body, method=method)
+              req.add_header("Accept", "application/json")
+              if body is not None:
+                  req.add_header("Content-Type", "application/json")
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as res:
+                      return res.status, res.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as err:
+                  return err.code, err.read().decode("utf-8", "replace")
+
+          def write_configs(url):
+              text = config_text(url)
+              pathlib.Path("dorm-manitto/store-config.js").write_text(text, encoding="utf-8")
+              korean = pathlib.Path("기숙사마니또/store-config.js")
+              if korean.exists():
+                  korean.write_text(text, encoding="utf-8")
+              pathlib.Path("dorm-manitto/store-ready.txt").write_text("ready\n", encoding="utf-8")
+
+          config = pathlib.Path("dorm-manitto/store-config.js")
+          cache = pathlib.Path(".manitto-store-url")
+          url = current_url(config) or (cache.read_text(encoding="utf-8").strip() if cache.exists() else "")
+          if url:
+              print("Store URL already set")
+              cache.write_text(url + "\n", encoding="utf-8")
+              write_configs(url)
+              raise SystemExit(0)
+
+          created = ""
+          attempts = [
+              ("https://getpantry.cloud/apiv1/pantry", {"name": "dorm-manitto", "description": "Shared manitto roster"}),
+              ("https://getpantry.cloud/apiv1/pantry", {
+                  "name": "dorm-manitto",
+                  "description": "Shared manitto roster",
+                  "contactEmail": "gjghsIT@users.noreply.github.com",
+              }),
+          ]
+          for target, payload in attempts:
+              status, text = http(target, payload, "POST")
+              print("create", target, status, text[:300])
+              match = re.search(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", text)
+              if match:
+                  created = match.group(0)
+                  break
+
+          if not created:
+              pathlib.Path("dorm-manitto/store-ready.txt").write_text("missing\n", encoding="utf-8")
+              raise SystemExit("Could not create shared manitto store")
+
+          basket = "https://getpantry.cloud/apiv1/pantry/%s/basket/state" % created
+          status, text = http(basket, {"version": 0, "lock": None, "matches": []}, "POST")
+          print("basket", status, text[:300])
+          if status >= 400:
+              raise SystemExit("Could not create manitto basket")
+
+          pathlib.Path(".manitto-store-url").write_text(basket + "\n", encoding="utf-8")
+          write_configs(basket)
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "add", "--", "dorm-manitto/store-config.js", "기숙사마니또/store-config.js"], check=False)
+          diff = subprocess.run(["git", "diff", "--cached", "--quiet"])
+          if diff.returncode != 0:
+              subprocess.run(["git", "commit", "-m", "Set manitto shared store URL. [skip ci]"], check=True)
+              subprocess.run(["git", "push"], check=True)
           PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
