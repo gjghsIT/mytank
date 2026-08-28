@@ -1,5 +1,20 @@
 (() => {
   const STORE_URL = String(window.MANITTO_STORE_URL || "").trim();
+  const REPO = "gjghsIT/mytank";
+  const STATE_PATH = "dorm-manitto/state.json";
+  const TOKEN = String(
+    new URLSearchParams(location.search).get("token") ||
+    (window.localStorage && localStorage.getItem("manittoToken")) ||
+    window.MANITTO_TOKEN ||
+    ""
+  ).trim();
+  if (TOKEN) {
+    try {
+      localStorage.setItem("manittoToken", TOKEN);
+    } catch (error) {
+      /* ignore private-mode storage */
+    }
+  }
 
   const STUDENTS = [
     { id: "1101", name: "강윤슬", grade: 1 },
@@ -92,37 +107,76 @@
     };
   }
 
+  function encodeB64(value) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary);
+  }
+
   function hasAllMatches(actual, expected) {
     const got = new Set((actual || []).map((m) => `${m.fromId}>${m.toId}`));
     return (expected || []).every((m) => got.has(`${m.fromId}>${m.toId}`));
   }
 
   async function getState() {
-    if (!STORE_URL) throw new Error("load");
-    const res = await fetch(`${STORE_URL}?t=${Date.now()}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    if (res.status === 404) return { version: 0, lock: null, matches: [] };
+    if (STORE_URL) {
+      const res = await fetch(`${STORE_URL}?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (res.status === 404) return { version: 0, lock: null, matches: [] };
+      if (!res.ok) throw new Error("load");
+      return normalize(await res.json());
+    }
+    const res = await fetch(
+      `https://api.github.com/repos/gjghsIT/mytank/contents/dorm-manitto/state.json?t=${Date.now()}`,
+      { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" }
+    );
     if (!res.ok) throw new Error("load");
-    return normalize(await res.json());
+    const meta = await res.json();
+    const binary = atob(String(meta.content || "").replace(/\n/g, ""));
+    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    const data = normalize(JSON.parse(new TextDecoder().decode(bytes)));
+    data.sha = meta.sha;
+    return data;
   }
 
   async function putState(state) {
-    if (!STORE_URL) throw new Error("save");
     const payload = {
       version: state.version || 0,
       lock: null,
       matches: state.matches || [],
     };
-    const res = await fetch(STORE_URL, {
-      method: "POST",
+    if (STORE_URL) {
+      const res = await fetch(STORE_URL, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("save");
+      return;
+    }
+    if (!TOKEN) throw new Error("save");
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${STATE_PATH}`, {
+      method: "PUT",
       headers: {
-        Accept: "application/json",
+        Accept: "application/vnd.github+json",
+        Authorization: "Bearer " + TOKEN,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        message: "Update manitto matches.",
+        content: encodeB64(JSON.stringify(payload)),
+        sha: state.sha,
+      }),
     });
+    if (res.status === 409 || res.status === 422) throw new Error("conflict");
     if (!res.ok) throw new Error("save");
   }
 
@@ -135,20 +189,34 @@
         return result;
       }
       const nextVersion = (state.version || 0) + 1;
-      await putState({
-        version: nextVersion,
-        matches: result.matches,
-      });
-      const verify = await getState();
-      const landed =
-        result.status === "reset"
-          ? verify.matches.length === 0
-          : hasAllMatches(verify.matches, result.matches);
-      if (landed) {
+      try {
+        await putState({
+          version: nextVersion,
+          matches: result.matches,
+          sha: state.sha,
+        });
+      } catch (error) {
+        if (error.message === "conflict") {
+          await sleep(150 + Math.random() * 400);
+          continue;
+        }
+        throw error;
+      }
+      if (STORE_URL) {
+        const verify = await getState();
+        const landed =
+          result.status === "reset"
+            ? verify.matches.length === 0
+            : hasAllMatches(verify.matches, result.matches);
+        if (!landed) {
+          await sleep(150 + Math.random() * 400);
+          continue;
+        }
         cachedMatches = verify.matches;
         return result;
       }
-      await sleep(150 + Math.random() * 400);
+      cachedMatches = result.matches;
+      return result;
     }
     throw new Error("busy");
   }
