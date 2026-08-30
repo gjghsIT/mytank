@@ -123,13 +123,15 @@
 
   async function getState() {
     if (STORE_URL) {
-      const res = await fetch(`${STORE_URL}?t=${Date.now()}`, {
+      const res = await fetch(STORE_URL, {
         cache: "no-store",
         headers: { Accept: "application/json" },
       });
       if (res.status === 404) return { version: 0, lock: null, matches: [] };
       if (!res.ok) throw new Error("load");
-      return normalize(await res.json());
+      const data = await res.json();
+      if (data == null) return { version: 0, lock: null, matches: [] };
+      return normalize(data);
     }
     const res = await fetch(
       `https://api.github.com/repos/gjghsIT/mytank/contents/dorm-manitto/state.json?t=${Date.now()}`,
@@ -152,7 +154,7 @@
     };
     if (STORE_URL) {
       const res = await fetch(STORE_URL, {
-        method: "POST",
+        method: "PUT",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
