@@ -269,12 +269,11 @@
     people.forEach((student) => {
       const option = document.createElement("option");
       option.value = student.id;
-      const iDrew = list.some((m) => m.fromId === student.id);
       const taken = used.has(student.id);
       option.textContent = taken
         ? `${student.name} (${student.id}) · 참여 완료`
         : `${student.name} (${student.id})`;
-      option.disabled = taken && !iDrew;
+      option.disabled = taken;
       els.nameSelect.append(option);
     });
     if (previous && [...els.nameSelect.options].some((o) => o.value === previous && !o.disabled)) {
